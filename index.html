@@ -554,6 +554,9 @@
                         <button id="start-camera-btn" class="btn btn-secondary" onclick="initCamera()">
                             📹 Enable Camera
                         </button>
+                        <button id="disable-camera-btn" class="btn btn-secondary" onclick="disableCamera()" disabled style="display: none;">
+                            📹 Disable Camera
+                        </button>
                         <button id="record-btn" class="btn btn-record" onclick="startRecording()" disabled>
                             🔴 Start PPG Recording
                         </button>
@@ -564,10 +567,14 @@
                         <div class="platform-selector">
                             <label>Platform:</label>
                             <select id="camera-platform-select">
-                                <option value="android">Android</option>
                                 <option value="ios">iOS</option>
+                                <option value="android">Android</option>
                             </select>
                         </div>
+                        
+                        <button id="toggle-flash-btn" class="btn btn-secondary" onclick="toggleFlash()" disabled style="display: none;">
+                            🔦 Turn Off Flash
+                        </button>
                     </div>
 
                     <div id="debug-info" style="background: #f8f9fa; border-radius: 10px; padding: 15px; margin-top: 20px; font-family: monospace; font-size: 0.9rem; display: none;">
@@ -614,8 +621,8 @@
                         <div class="platform-selector">
                             <label>Platform:</label>
                             <select id="platform-select">
-                                <option value="android">Android</option>
                                 <option value="ios">iOS</option>
+                                <option value="android">Android</option>
                             </select>
                         </div>
                     </div>
@@ -650,11 +657,14 @@
 
         // Global variables
         let mediaStream = null;
+        let videoTrack = null;
+        let flashEnabled = false;
         let recordingFrames = [];
         let isRecording = false;
         let recordingInterval = null;
         let countdownInterval = null;
         let recordingStartTime = 0;
+        let lastRecordingResults = null; // Store last results for export
         const RECORDING_DURATION = 10000; // 10 seconds
         const COUNTDOWN_DURATION = 3; // 3 seconds
         const FRAME_RATE = 10; // Reduced to 10fps for mobile stability
@@ -855,29 +865,27 @@
                     }
                 };
 
-                // Try to get torch capability
-                try {
-                    constraints.video.torch = true;
-                } catch (e) {
-                    console.log('Torch not supported, will try alternative methods');
-                }
-
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoTrack = mediaStream.getVideoTracks()[0];
                 
                 const video = document.getElementById('camera-preview');
                 video.srcObject = mediaStream;
 
                 // Try to enable torch/flash
-                const track = mediaStream.getVideoTracks()[0];
-                if (track.getCapabilities && track.getCapabilities().torch) {
-                    await track.applyConstraints({
-                        advanced: [{ torch: true }]
-                    });
+                if (videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities().torch) {
+                    document.getElementById('toggle-flash-btn').style.display = 'inline-block';
+                    document.getElementById('toggle-flash-btn').disabled = false;
+                    
+                    // Turn on flash by default
+                    await enableFlash();
                 } else {
                     showError('Flash/torch not available on this device. Recording will continue without flash.');
                 }
 
                 document.getElementById('start-camera-btn').disabled = true;
+                document.getElementById('start-camera-btn').style.display = 'none';
+                document.getElementById('disable-camera-btn').disabled = false;
+                document.getElementById('disable-camera-btn').style.display = 'inline-block';
                 document.getElementById('record-btn').disabled = false;
                 
                 // Initialize PPG converter with video dimensions
@@ -887,6 +895,49 @@
 
             } catch (error) {
                 showError('Camera access failed: ' + error.message + '. Please ensure you allow camera permissions and use HTTPS.');
+            }
+        }
+
+        // Flash control functions
+        async function enableFlash() {
+            try {
+                if (videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities().torch) {
+                    await videoTrack.applyConstraints({
+                        advanced: [{ torch: true }]
+                    });
+                    flashEnabled = true;
+                    debugLog('Flash enabled');
+                    return true;
+                }
+            } catch (error) {
+                debugLog(`Flash enable failed: ${error.message}`);
+            }
+            return false;
+        }
+
+        async function disableFlash() {
+            try {
+                if (videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities().torch) {
+                    await videoTrack.applyConstraints({
+                        advanced: [{ torch: false }]
+                    });
+                    flashEnabled = false;
+                    debugLog('Flash disabled');
+                    return true;
+                }
+            } catch (error) {
+                debugLog(`Flash disable failed: ${error.message}`);
+            }
+            return false;
+        }
+
+        async function toggleFlash() {
+            if (flashEnabled) {
+                await disableFlash();
+                document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash';
+            } else {
+                await enableFlash();
+                document.getElementById('toggle-flash-btn').textContent = '🔦 Turn Off Flash';
             }
         }
 
@@ -1051,6 +1102,9 @@
                     recordingInterval = null;
                 }
                 
+                // Turn off flash after recording
+                disableFlash();
+                
                 resetRecordingUI();
                 
                 debugLog(`Recording stopped. Captured ${recordingFrames.length} frames`);
@@ -1135,6 +1189,17 @@
                 }
                 
                 debugLog(`Successfully processed ${results.length} frames`);
+                
+                // Store results for export
+                lastRecordingResults = {
+                    type: 'camera_recording',
+                    platform: platform,
+                    timestamp: new Date().toISOString(),
+                    frameCount: results.length,
+                    duration: results.length > 1 ? (results[results.length - 1].timestamp - results[0].timestamp) : 0,
+                    data: results
+                };
+                
                 displayCameraResults(results, platform);
                 
                 // Hide debug info after successful completion
@@ -1255,7 +1320,7 @@
             const resultsContainer = document.getElementById('results');
             resultsContainer.innerHTML = '';
             
-            // Create summary card
+            // Create summary card with export options
             const summaryCard = document.createElement('div');
             summaryCard.className = 'result-card';
             summaryCard.innerHTML = `
@@ -1263,6 +1328,12 @@
                 <p><strong>Frames Processed:</strong> ${results.length}</p>
                 <p><strong>Platform:</strong> ${platform.toUpperCase()}</p>
                 <p><strong>Duration:</strong> ~${Math.round((results[results.length - 1].timestamp - results[0].timestamp) / 1000 * 10) / 10}s</p>
+                
+                <div class="controls" style="margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="exportPPGData('json')">📄 Export JSON</button>
+                    <button class="btn btn-primary" onclick="exportPPGData('csv')">📊 Export CSV</button>
+                    <button class="btn btn-secondary" onclick="exportPPGData('txt')">📝 Export TXT</button>
+                </div>
             `;
             resultsContainer.appendChild(summaryCard);
             
@@ -1316,6 +1387,107 @@
                     resultsContainer.appendChild(card);
                 }
             });
+        }
+
+        // Export PPG data in different formats
+        function exportPPGData(format) {
+            if (!lastRecordingResults) {
+                showError('No recording data available to export');
+                return;
+            }
+
+            try {
+                let content = '';
+                let filename = `ppg_recording_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}`;
+                let mimeType = 'text/plain';
+
+                switch (format) {
+                    case 'json':
+                        content = JSON.stringify(lastRecordingResults, null, 2);
+                        filename += '.json';
+                        mimeType = 'application/json';
+                        break;
+
+                    case 'csv':
+                        // Create CSV with frame data and PPG signals
+                        const headers = ['frame_index', 'timestamp', 'rgb_r', 'rgb_g', 'rgb_b', 'yuv_y', 'yuv_u', 'yuv_v', 'quality_warning'];
+                        
+                        // Add PPG signal columns
+                        const maxSignals = Math.max(...lastRecordingResults.data.map(d => d.ppg.signals.length));
+                        for (let i = 0; i < Math.min(maxSignals, 30); i++) {
+                            headers.push(`ppg_signal_${i}`);
+                        }
+                        
+                        const rows = [headers.join(',')];
+                        
+                        lastRecordingResults.data.forEach(frame => {
+                            const row = [
+                                frame.frameIndex,
+                                frame.timestamp,
+                                frame.avgRgb.r,
+                                frame.avgRgb.g,
+                                frame.avgRgb.b,
+                                frame.avgYuv.y,
+                                frame.avgYuv.u,
+                                frame.avgYuv.v,
+                                frame.ppg.qualityWarning ? 1 : 0
+                            ];
+                            
+                            // Add PPG signals
+                            for (let i = 0; i < Math.min(frame.ppg.signals.length, 30); i++) {
+                                row.push(frame.ppg.signals[i].toFixed(3));
+                            }
+                            
+                            rows.push(row.join(','));
+                        });
+                        
+                        content = rows.join('\n');
+                        filename += '.csv';
+                        mimeType = 'text/csv';
+                        break;
+
+                    case 'txt':
+                        // Create human-readable text format
+                        content = `PPG Recording Export\n`;
+                        content += `===================\n\n`;
+                        content += `Platform: ${lastRecordingResults.platform}\n`;
+                        content += `Timestamp: ${lastRecordingResults.timestamp}\n`;
+                        content += `Frame Count: ${lastRecordingResults.frameCount}\n`;
+                        content += `Duration: ${(lastRecordingResults.duration / 1000).toFixed(1)}s\n\n`;
+                        
+                        content += `Frame Data:\n`;
+                        content += `-----------\n`;
+                        
+                        lastRecordingResults.data.forEach((frame, index) => {
+                            content += `\nFrame ${frame.frameIndex}:\n`;
+                            content += `  RGB: ${frame.avgRgb.r}, ${frame.avgRgb.g}, ${frame.avgRgb.b}\n`;
+                            content += `  YUV: ${frame.avgYuv.y}, ${frame.avgYuv.u}, ${frame.avgYuv.v}\n`;
+                            content += `  PPG Signals: ${frame.ppg.signals.slice(0, 10).map(s => s.toFixed(1)).join(', ')}...\n`;
+                            content += `  Quality: ${frame.ppg.qualityWarning ? 'Warning' : 'Good'}\n`;
+                        });
+                        
+                        filename += '.txt';
+                        break;
+                }
+
+                // Create and download file
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+                
+                debugLog(`Exported ${format.toUpperCase()} file: ${filename}`);
+                
+            } catch (error) {
+                showError('Export failed: ' + error.message);
+            }
         }
 
         // RGB to YUV conversion functions (for manual input)
@@ -1445,6 +1617,36 @@
             const resultsContainer = document.getElementById('results');
             resultsContainer.innerHTML = '';
             
+            // Store results for export (manual input)
+            lastRecordingResults = {
+                type: 'manual_input',
+                platform: platform,
+                timestamp: new Date().toISOString(),
+                frameCount: results.length,
+                data: results.map((result, index) => ({
+                    frameIndex: index,
+                    timestamp: Date.now(),
+                    avgRgb: result.rgb,
+                    avgYuv: result.yuv,
+                    ppg: result.ppg
+                }))
+            };
+            
+            // Add export buttons for manual results too
+            if (results.length > 0) {
+                const exportCard = document.createElement('div');
+                exportCard.className = 'result-card';
+                exportCard.innerHTML = `
+                    <h3>📤 Export Results</h3>
+                    <div class="controls">
+                        <button class="btn btn-primary" onclick="exportPPGData('json')">📄 Export JSON</button>
+                        <button class="btn btn-primary" onclick="exportPPGData('csv')">📊 Export CSV</button>
+                        <button class="btn btn-secondary" onclick="exportPPGData('txt')">📝 Export TXT</button>
+                    </div>
+                `;
+                resultsContainer.appendChild(exportCard);
+            }
+            
             results.forEach((result, index) => {
                 const card = document.createElement('div');
                 card.className = 'result-card';
@@ -1509,11 +1711,39 @@
         }
 
         // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
+        window.addEventListener('beforeunload', async () => {
             if (mediaStream) {
+                // Turn off flash before closing
+                await disableFlash();
                 mediaStream.getTracks().forEach(track => track.stop());
             }
         });
+
+        // Cleanup function for disabling camera
+        async function disableCamera() {
+            try {
+                if (mediaStream) {
+                    await disableFlash();
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                    videoTrack = null;
+                }
+                
+                document.getElementById('start-camera-btn').disabled = false;
+                document.getElementById('start-camera-btn').style.display = 'inline-block';
+                document.getElementById('disable-camera-btn').disabled = true;
+                document.getElementById('disable-camera-btn').style.display = 'none';
+                document.getElementById('record-btn').disabled = true;
+                document.getElementById('toggle-flash-btn').style.display = 'none';
+                document.getElementById('camera-preview').srcObject = null;
+                
+                debugLog('Camera disabled and flash turned off');
+                
+            } catch (error) {
+                console.error('Error disabling camera:', error);
+                showError('Error disabling camera: ' + error.message);
+            }
+        }
 
         // Initialize
         updateColorPreview();
