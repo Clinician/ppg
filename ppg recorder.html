@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RGB to YUV + PPG Converter</title>
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUkdCIHRvIFlVViBDb252ZXJ0ZXIiLCJzaG9ydF9uYW1lIjoiUkdCMllVViIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjMDA3Y2ZmIn0=">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #007cff 0%, #0056b3 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            background: none;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            color: #007cff;
+            border-bottom-color: #007cff;
+        }
+
+        .tab:hover {
+            color: #007cff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .camera-section {
+            text-align: center;
+        }
+
+        .camera-container {
+            position: relative;
+            max-width: 400px;
+            margin: 0 auto 30px;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+
+        .camera-preview {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            background: #333;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .countdown {
+            font-size: 4rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .recording-status {
+            background: #ff4757;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .camera-info {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            color: #1976d2;
+        }
+
+        .camera-info h3 {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .camera-info ul {
+            margin-left: 20px;
+        }
+
+        .camera-info li {
+            margin-bottom: 5px;
+        }
+
+        .input-section {
+            margin-bottom: 40px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .rgb-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .rgb-input {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .rgb-input label {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            color: #666;
+        }
+
+        .rgb-input input {
+            width: 80px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: border-color 0.3s ease;
+        }
+
+        .rgb-input input:focus {
+            outline: none;
+            border-color: #007cff;
+        }
+
+        .rgb-input input[data-channel="r"] {
+            border-color: #ff6b6b;
+        }
+
+        .rgb-input input[data-channel="g"] {
+            border-color: #4ecdc4;
+        }
+
+        .rgb-input input[data-channel="b"] {
+            border-color: #45b7d1;
+        }
+
+        .color-preview {
+            width: 150px;
+            height: 150px;
+            border-radius: 15px;
+            margin: 20px auto;
+            border: 3px solid #ddd;
+            transition: background-color 0.3s ease;
+        }
+
+        .sequence-input textarea {
+            width: 100%;
+            height: 120px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        .sequence-input textarea:focus {
+            outline: none;
+            border-color: #007cff;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007cff 0%, #0056b3 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,124,255,0.3);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+
+        .btn-record {
+            background: linear-gradient(135deg, #ff4757 0%, #c44569 100%);
+            color: white;
+            font-size: 1.2rem;
+            padding: 15px 30px;
+        }
+
+        .btn-record:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255,71,87,0.3);
+        }
+
+        .platform-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .platform-selector label {
+            font-size: 1rem;
+            margin: 0 5px 0 0;
+        }
+
+        .platform-selector select {
+            padding: 8px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #e9ecef;
+        }
+
+        .result-card h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-card h3::before {
+            content: "📊";
+            font-size: 1.2rem;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .result-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .result-item.y-channel {
+            border-color: #ffd700;
+            background: linear-gradient(135deg, #fff9e6 0%, #fff3cc 100%);
+        }
+
+        .result-item.u-channel {
+            border-color: #87ceeb;
+            background: linear-gradient(135deg, #e6f3ff 0%, #cce7ff 100%);
+        }
+
+        .result-item.v-channel {
+            border-color: #dda0dd;
+            background: linear-gradient(135deg, #f0e6f0 0%, #e6ccf0 100%);
+        }
+
+        .result-item h4 {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .result-item .value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .ppg-results {
+            margin-top: 20px;
+        }
+
+        .ppg-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+        }
+
+        .ppg-value {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .quality-warning {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .quality-good {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .quality-bad {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #f5c6cb;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007cff, #0056b3);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .rgb-inputs {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .results {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .tabs {
+                overflow-x: auto;
+            }
+
+            .tab {
+                white-space: nowrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>RGB to YUV + PPG Converter</h1>
+            <p>Convert RGB sequences to YUV and extract PPG signals with camera recording</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('camera')">📸 Camera Recording</button>
+                <button class="tab" onclick="switchTab('manual')">✏️ Manual Input</button>
+            </div>
+
+            <!-- Camera Recording Tab -->
+            <div id="camera-tab" class="tab-content active">
+                <div class="camera-section">
+                    <div class="camera-info">
+                        <h3>📱 Camera PPG Recording Instructions</h3>
+                        <ul>
+                            <li>Place your fingertip gently over the rear camera and flash</li>
+                            <li>Ensure the flash light shines through your fingertip</li>
+                            <li>Hold steady for the entire 10-second recording</li>
+                            <li>The app will automatically extract RGB data for PPG analysis</li>
+                        </ul>
+                    </div>
+
+                    <div class="camera-container">
+                        <video id="camera-preview" class="camera-preview" autoplay muted></video>
+                        <canvas id="capture-canvas" style="display: none;"></canvas>
+                        <div id="camera-overlay" class="camera-overlay" style="display: none;">
+                            <div id="countdown-display" class="countdown"></div>
+                            <div id="recording-status" class="recording-status" style="display: none;">
+                                ● RECORDING
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="progress-bar">
+                        <div id="recording-progress" class="progress-fill"></div>
+                    </div>
+
+                    <div class="camera-controls">
+                        <button id="start-camera-btn" class="btn btn-secondary" onclick="initCamera()">
+                            📹 Enable Camera
+                        </button>
+                        <button id="record-btn" class="btn btn-record" onclick="startRecording()" disabled>
+                            🔴 Start PPG Recording
+                        </button>
+                        <button id="stop-btn" class="btn btn-secondary" onclick="stopRecording()" disabled style="display: none;">
+                            ⏹️ Stop Recording
+                        </button>
+                        
+                        <div class="platform-selector">
+                            <label>Platform:</label>
+                            <select id="camera-platform-select">
+                                <option value="android">Android</option>
+                                <option value="ios">iOS</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Input Tab -->
+            <div id="manual-tab" class="tab-content">
+                <div class="input-section">
+                    <div class="input-group">
+                        <label>Single RGB Input:</label>
+                        <div class="rgb-inputs">
+                            <div class="rgb-input">
+                                <label>Red</label>
+                                <input type="number" id="r-input" min="0" max="255" value="128" data-channel="r">
+                            </div>
+                            <div class="rgb-input">
+                                <label>Green</label>
+                                <input type="number" id="g-input" min="0" max="255" value="128" data-channel="g">
+                            </div>
+                            <div class="rgb-input">
+                                <label>Blue</label>
+                                <input type="number" id="b-input" min="0" max="255" value="128" data-channel="b">
+                            </div>
+                        </div>
+                        <div class="color-preview" id="color-preview"></div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>RGB Sequence (comma-separated triplets):</label>
+                        <div class="sequence-input">
+                            <textarea id="sequence-input" placeholder="255,0,0, 0,255,0, 0,0,255, 128,128,128, 200,150,100"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="controls">
+                        <button class="btn btn-primary" onclick="convertSingle()">Convert Single</button>
+                        <button class="btn btn-primary" onclick="convertSequence()">Convert Sequence</button>
+                        <button class="btn btn-secondary" onclick="clearResults()">Clear Results</button>
+                        
+                        <div class="platform-selector">
+                            <label>Platform:</label>
+                            <select id="platform-select">
+                                <option value="android">Android</option>
+                                <option value="ios">iOS</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="results" class="results"></div>
+            <div id="error" style="display: none;" class="error"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let mediaStream = null;
+        let recordingFrames = [];
+        let isRecording = false;
+        let recordingInterval = null;
+        let countdownInterval = null;
+        let recordingStartTime = 0;
+        const RECORDING_DURATION = 10000; // 10 seconds
+        const COUNTDOWN_DURATION = 3; // 3 seconds
+        const FRAME_RATE = 30; // frames per second
+
+        // Video2PPGConverter class from uploaded file
+        class Video2PPGConverter {
+            constructor() {
+                this.imWidth = 0;
+                this.imHeight = 0;
+                this.phoneModel = 0;
+            }
+
+            initAlgo(width, height, phoneModel) {
+                this.imWidth = width;
+                this.imHeight = height;
+                this.phoneModel = phoneModel;
+            }
+
+            convertFrame2PPG(timestamp, y, uvOrU, v, platform) {
+                const nROIs = 3;
+                let ppgValues, qualityWarning;
+
+                if (platform === 'ios') {
+                    [ppgValues, qualityWarning] = this.extractFeaturesiOS(
+                        y, nROIs, nROIs, this.imWidth, this.imHeight, this.phoneModel
+                    );
+                } else if (platform === 'android') {
+                    [ppgValues, qualityWarning] = this.extractFeaturesAndroid(
+                        y, uvOrU, v, nROIs, nROIs, this.imWidth, this.imHeight, this.phoneModel
+                    );
+                } else {
+                    throw new Error('Unsupported platform. Use "ios" or "android".');
+                }
+
+                return {
+                    timestamp,
+                    signals: ppgValues,
+                    qualityWarning,
+                };
+            }
+
+            extractFeaturesiOS(y, nROIsByRow, nROIsByCols, width, height, phoneModel) {
+                const nROIs = nROIsByRow * nROIsByCols;
+                const wStep = Math.floor(width / nROIsByRow);
+                const hStep = Math.floor(height / nROIsByCols);
+                let row = 1;
+                let rest = 0;
+                let maxY = 0;
+                let minY = 100000;
+                const ppgValues = new Array(3 * nROIs + 3).fill(0);
+
+                for (let r = 0; r < nROIs; r++) {
+                    let numPixels = 0;
+                    let roiMeanY = 0;
+
+                    const xOffset = (r * wStep + rest) % width;
+                    const yOffset = Math.floor((r * wStep + rest) / width) * hStep;
+
+                    let roiWidth = ((r + 2) * wStep / width) > row ? width - xOffset : wStep;
+                    if (((r + 2) * wStep / width) > row) {
+                        rest += row * width - ((r + 1) * wStep + rest);
+                        row++;
+                    }
+
+                    const roiHeight = (((r + 2) * wStep / width) * hStep / height) > 1 ? height - yOffset : hStep;
+
+                    for (let i = xOffset; i < xOffset + roiWidth; i++) {
+                        for (let j = yOffset; j < yOffset + roiHeight; j++) {
+                            if (i + j * width < y.length) {
+                                const yVal = y[i + j * width] & 0xff;
+                                roiMeanY += yVal;
+                                numPixels++;
+                            }
+                        }
+                    }
+
+                    if (numPixels > 0) {
+                        ppgValues[3 * r] = roiMeanY / numPixels;
+                        if (ppgValues[3 * r] > maxY) maxY = ppgValues[3 * r];
+                        if (ppgValues[3 * r] < minY) minY = ppgValues[3 * r];
+                    }
+                }
+
+                const maxIntensity = 1100;
+                const minIntensity = 400;
+                const qualityWarning = maxY < maxIntensity && minY > minIntensity ? false : true;
+
+                return [ppgValues, qualityWarning];
+            }
+
+            extractFeaturesAndroid(y, u, v, nROIsByRow, nROIsByCols, width, height, phoneModel) {
+                const nROIs = nROIsByRow * nROIsByCols;
+                const wStep = Math.floor(width / nROIsByRow);
+                const hStep = Math.floor(height / nROIsByCols);
+                let row = 1;
+                let rest = 0;
+                let maxY = 0;
+                let minY = 100000;
+                let varY = 0;
+                const ppgValues = new Array(3 * nROIs + 3).fill(0);
+
+                for (let r = 0; r < nROIs; r++) {
+                    let numPixels = 0;
+                    let roiMeanY = 0;
+                    let roiMeanU = 0;
+                    let roiMeanV = 0;
+                    let smsqY = 0;
+
+                    const xOffset = (r * wStep + rest) % width;
+                    const yOffset = Math.floor((r * wStep + rest) / width) * hStep;
+
+                    let roiWidth = ((r + 2) * wStep / width) > row ? width - xOffset : wStep;
+                    if (((r + 2) * wStep / width) > row) {
+                        rest += row * width - ((r + 1) * wStep + rest);
+                        row++;
+                    }
+
+                    const roiHeight = (((r + 2) * wStep / width) * hStep / height) > 1 ? height - yOffset : hStep;
+
+                    for (let i = xOffset; i < xOffset + roiWidth; i++) {
+                        for (let j = yOffset; j < yOffset + roiHeight; j++) {
+                            if (i + j * width < y.length) {
+                                const xBy2 = Math.floor(i / 2);
+                                const yBy2 = Math.floor(j / 2);
+                                const yVal = y[i + j * width] & 0xff;
+                                const index = 2 * xBy2 + yBy2 * width;
+                                let uVal = 128, vVal = 128; // default values
+
+                                if (u && v) {
+                                    if (index < u.length) {
+                                        uVal = u[index] & 0xff;
+                                    } else if (v && index - u.length < v.length) {
+                                        uVal = v[index - u.length] & 0xff;
+                                    }
+                                    if (index + 1 < u.length) {
+                                        vVal = u[index + 1] & 0xff;
+                                    } else if (v && index + 1 - u.length < v.length) {
+                                        vVal = v[index + 1 - u.length] & 0xff;
+                                    }
+                                }
+
+                                roiMeanY += yVal;
+                                roiMeanU += uVal;
+                                roiMeanV += vVal;
+                                smsqY += uVal * uVal;
+                                numPixels++;
+                            }
+                        }
+                    }
+
+                    if (numPixels > 0) {
+                        ppgValues[3 * r] = roiMeanY / numPixels;
+                        ppgValues[3 * r + 1] = roiMeanU / numPixels;
+                        ppgValues[3 * r + 2] = roiMeanV / numPixels;
+
+                        const tmpY = Math.sqrt(Math.max(0, smsqY / numPixels - (roiMeanU / numPixels) ** 2));
+                        if (tmpY > varY) varY = tmpY;
+                        if (ppgValues[3 * r + 1] > maxY) maxY = ppgValues[3 * r + 1];
+                        if (ppgValues[3 * r + 1] < minY) minY = ppgValues[3 * r + 1];
+                    }
+                }
+
+                const maxVar = 10;
+                const maxIntensity = 150;
+                const minIntensity = 10;
+                const qualityWarning = varY < maxVar && maxY < maxIntensity && minY > minIntensity ? false : true;
+
+                return [ppgValues, qualityWarning];
+            }
+        }
+
+        // Initialize PPG converter
+        const ppgConverter = new Video2PPGConverter();
+
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector(`.tab[onclick*="${tabName}"]`).classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        // Camera initialization
+        async function initCamera() {
+            try {
+                hideError();
+                
+                // Request camera with back camera and torch if possible
+                const constraints = {
+                    video: {
+                        facingMode: { exact: "environment" },
+                        width: { ideal: 1920, max: 1920 },
+                        height: { ideal: 1080, max: 1080 }
+                    }
+                };
+
+                // Try to get torch capability
+                try {
+                    constraints.video.torch = true;
+                } catch (e) {
+                    console.log('Torch not supported, will try alternative methods');
+                }
+
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const video = document.getElementById('camera-preview');
+                video.srcObject = mediaStream;
+
+                // Try to enable torch/flash
+                const track = mediaStream.getVideoTracks()[0];
+                if (track.getCapabilities && track.getCapabilities().torch) {
+                    await track.applyConstraints({
+                        advanced: [{ torch: true }]
+                    });
+                } else {
+                    showError('Flash/torch not available on this device. Recording will continue without flash.');
+                }
+
+                document.getElementById('start-camera-btn').disabled = true;
+                document.getElementById('record-btn').disabled = false;
+                
+                // Initialize PPG converter with video dimensions
+                video.addEventListener('loadedmetadata', () => {
+                    ppgConverter.initAlgo(video.videoWidth || 640, video.videoHeight || 480, 1);
+                });
+
+            } catch (error) {
+                showError('Camera access failed: ' + error.message + '. Please ensure you allow camera permissions and use HTTPS.');
+            }
+        }
+
+        // Start recording countdown and process
+        async function startRecording() {
+            if (!mediaStream) {
+                showError('Please enable camera first');
+                return;
+            }
+
+            try {
+                hideError();
+                recordingFrames = [];
+                
+                document.getElementById('record-btn').disabled = true;
+                document.getElementById('stop-btn').style.display = 'inline-block';
+                document.getElementById('camera-overlay').style.display = 'flex';
+                
+                // Start countdown
+                let countdown = COUNTDOWN_DURATION;
+                const countdownDisplay = document.getElementById('countdown-display');
+                const recordingStatus = document.getElementById('recording-status');
+                
+                countdownDisplay.textContent = countdown;
+                
+                countdownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        countdownDisplay.textContent = countdown;
+                    } else {
+                        clearInterval(countdownInterval);
+                        countdownDisplay.style.display = 'none';
+                        recordingStatus.style.display = 'block';
+                        
+                        // Start actual recording
+                        startActualRecording();
+                    }
+                }, 1000);
+
+            } catch (error) {
+                showError('Failed to start recording: ' + error.message);
+                resetRecordingUI();
+            }
+        }
+
+        // Start the actual frame capture
+        function startActualRecording() {
+            isRecording = true;
+            recordingStartTime = Date.now();
+            
+            const video = document.getElementById('camera-preview');
+            const canvas = document.getElementById('capture-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            
+            // Capture frames at specified frame rate
+            recordingInterval = setInterval(() => {
+                if (!isRecording) return;
+                
+                const currentTime = Date.now();
+                const elapsed = currentTime - recordingStartTime;
+                
+                // Update progress bar
+                const progress = Math.min((elapsed / RECORDING_DURATION) * 100, 100);
+                document.getElementById('recording-progress').style.width = progress + '%';
+                
+                // Capture frame
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                recordingFrames.push({
+                    timestamp: currentTime,
+                    imageData: imageData,
+                    width: canvas.width,
+                    height: canvas.height
+                });
+                
+                // Stop after 10 seconds
+                if (elapsed >= RECORDING_DURATION) {
+                    stopRecording();
+                }
+                
+            }, 1000 / FRAME_RATE);
+        }
+
+        // Stop recording and process frames
+        function stopRecording() {
+            isRecording = false;
+            
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            
+            if (recordingInterval) {
+                clearInterval(recordingInterval);
+                recordingInterval = null;
+            }
+            
+            resetRecordingUI();
+            
+            if (recordingFrames.length === 0) {
+                showError('No frames captured during recording');
+                return;
+            }
+            
+            // Process captured frames
+            processRecordedFrames();
+        }
+
+        // Reset UI after recording
+        function resetRecordingUI() {
+            document.getElementById('record-btn').disabled = false;
+            document.getElementById('stop-btn').style.display = 'none';
+            document.getElementById('camera-overlay').style.display = 'none';
+            document.getElementById('countdown-display').style.display = 'block';
+            document.getElementById('recording-status').style.display = 'none';
+            document.getElementById('recording-progress').style.width = '0%';
+        }
+
+        // Process recorded frames
+        function processRecordedFrames() {
+            try {
+                const platform = document.getElementById('camera-platform-select').value;
+                const results = [];
+                
+                // Sample frames (process every 10th frame to reduce processing load)
+                const sampleStep = Math.max(1, Math.floor(recordingFrames.length / 30));
+                
+                for (let i = 0; i < recordingFrames.length; i += sampleStep) {
+                    const frame = recordingFrames[i];
+                    const rgbData = extractRGBFromImageData(frame.imageData);
+                    const yuvData = rgbToYuvArrays(rgbData);
+                    
+                    // Update PPG converter dimensions if needed
+                    if (ppgConverter.imWidth !== frame.width || ppgConverter.imHeight !== frame.height) {
+                        ppgConverter.initAlgo(frame.width, frame.height, 1);
+                    }
+                    
+                    // Get PPG results
+                    const ppgResult = ppgConverter.convertFrame2PPG(
+                        frame.timestamp,
+                        yuvData.y,
+                        yuvData.u,
+                        yuvData.v,
+                        platform
+                    );
+                    
+                    results.push({
+                        frameIndex: i,
+                        timestamp: frame.timestamp,
+                        avgRgb: calculateAverageRGB(rgbData),
+                        avgYuv: calculateAverageYUV(yuvData),
+                        ppg: ppgResult
+                    });
+                }
+                
+                displayCameraResults(results, platform);
+                
+            } catch (error) {
+                showError('Error processing recorded frames: ' + error.message);
+            }
+        }
+
+        // Extract RGB data from ImageData
+        function extractRGBFromImageData(imageData) {
+            const data = imageData.data;
+            const rgbData = {
+                r: new Uint8Array(imageData.width * imageData.height),
+                g: new Uint8Array(imageData.width * imageData.height),
+                b: new Uint8Array(imageData.width * imageData.height)
+            };
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const pixelIndex = i / 4;
+                rgbData.r[pixelIndex] = data[i];
+                rgbData.g[pixelIndex] = data[i + 1];
+                rgbData.b[pixelIndex] = data[i + 2];
+            }
+            
+            return rgbData;
+        }
+
+        // Convert RGB arrays to YUV arrays
+        function rgbToYuvArrays(rgbData) {
+            const length = rgbData.r.length;
+            const yuvData = {
+                y: new Uint8Array(length),
+                u: new Uint8Array(length / 2),
+                v: new Uint8Array(length / 2)
+            };
+            
+            for (let i = 0; i < length; i++) {
+                const r = rgbData.r[i];
+                const g = rgbData.g[i];
+                const b = rgbData.b[i];
+                
+                yuvData.y[i] = Math.max(0, Math.min(255, Math.round(0.299 * r + 0.587 * g + 0.114 * b)));
+                
+                // Subsample U and V (4:2:0 format)
+                if (i % 2 === 0 && i / 2 < yuvData.u.length) {
+                    yuvData.u[i / 2] = Math.max(0, Math.min(255, Math.round(-0.14713 * r - 0.28886 * g + 0.436 * b + 128)));
+                    yuvData.v[i / 2] = Math.max(0, Math.min(255, Math.round(0.615 * r - 0.51499 * g - 0.10001 * b + 128)));
+                }
+            }
+            
+            return yuvData;
+        }
+
+        // Calculate average RGB values
+        function calculateAverageRGB(rgbData) {
+            const length = rgbData.r.length;
+            let rSum = 0, gSum = 0, bSum = 0;
+            
+            for (let i = 0; i < length; i++) {
+                rSum += rgbData.r[i];
+                gSum += rgbData.g[i];
+                bSum += rgbData.b[i];
+            }
+            
+            return {
+                r: Math.round(rSum / length),
+                g: Math.round(gSum / length),
+                b: Math.round(bSum / length)
+            };
+        }
+
+        // Calculate average YUV values
+        function calculateAverageYUV(yuvData) {
+            let ySum = 0, uSum = 0, vSum = 0;
+            
+            for (let i = 0; i < yuvData.y.length; i++) {
+                ySum += yuvData.y[i];
+            }
+            
+            for (let i = 0; i < yuvData.u.length; i++) {
+                uSum += yuvData.u[i];
+                vSum += yuvData.v[i];
+            }
+            
+            return {
+                y: Math.round(ySum / yuvData.y.length),
+                u: Math.round(uSum / yuvData.u.length),
+                v: Math.round(vSum / yuvData.v.length)
+            };
+        }
+
+        // Display camera recording results
+        function displayCameraResults(results, platform) {
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';
+            
+            // Create summary card
+            const summaryCard = document.createElement('div');
+            summaryCard.className = 'result-card';
+            summaryCard.innerHTML = `
+                <h3>📊 Camera Recording Summary</h3>
+                <p><strong>Frames Processed:</strong> ${results.length}</p>
+                <p><strong>Platform:</strong> ${platform.toUpperCase()}</p>
+                <p><strong>Duration:</strong> ~${Math.round((results[results.length - 1].timestamp - results[0].timestamp) / 1000 * 10) / 10}s</p>
+            `;
+            resultsContainer.appendChild(summaryCard);
+            
+            // Display individual frames (show first, middle, and last few frames)
+            const framesToShow = [0, Math.floor(results.length / 2), results.length - 1];
+            
+            framesToShow.forEach(index => {
+                if (index >= 0 && index < results.length) {
+                    const result = results[index];
+                    const card = document.createElement('div');
+                    card.className = 'result-card';
+                    
+                    card.innerHTML = `
+                        <h3>Frame ${result.frameIndex} (${index === 0 ? 'Start' : index === Math.floor(results.length / 2) ? 'Middle' : 'End'})</h3>
+                        
+                        <div class="result-grid">
+                            <div class="result-item">
+                                <h4>Avg RGB</h4>
+                                <div class="value" style="color: rgb(${result.avgRgb.r}, ${result.avgRgb.g}, ${result.avgRgb.b}); font-size: 1.2rem;">
+                                    ${result.avgRgb.r}, ${result.avgRgb.g}, ${result.avgRgb.b}
+                                </div>
+                            </div>
+                            <div class="result-item y-channel">
+                                <h4>Y (Luma)</h4>
+                                <div class="value">${result.avgYuv.y}</div>
+                            </div>
+                            <div class="result-item u-channel">
+                                <h4>U (Chroma)</h4>
+                                <div class="value">${result.avgYuv.u}</div>
+                            </div>
+                            <div class="result-item v-channel">
+                                <h4>V (Chroma)</h4>
+                                <div class="value">${result.avgYuv.v}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="ppg-results">
+                            <h4>PPG Signals (${platform.toUpperCase()}):</h4>
+                            <div class="ppg-grid">
+                                ${result.ppg.signals.slice(0, 15).map((signal, i) => 
+                                    `<div class="ppg-value">${signal.toFixed(1)}</div>`
+                                ).join('')}
+                            </div>
+                            
+                            <div class="quality-warning ${result.ppg.qualityWarning ? 'quality-bad' : 'quality-good'}">
+                                Quality: ${result.ppg.qualityWarning ? 'Warning - Poor signal quality' : 'Good signal quality'}
+                            </div>
+                        </div>
+                    `;
+                    
+                    resultsContainer.appendChild(card);
+                }
+            });
+        }
+
+        // RGB to YUV conversion functions (for manual input)
+        function rgbToYuv(r, g, b) {
+            const Y = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+            const U = Math.round(-0.14713 * r - 0.28886 * g + 0.436 * b + 128);
+            const V = Math.round(0.615 * r - 0.51499 * g - 0.10001 * b + 128);
+            
+            return {
+                y: Math.max(0, Math.min(255, Y)),
+                u: Math.max(0, Math.min(255, U)),
+                v: Math.max(0, Math.min(255, V))
+            };
+        }
+
+        // Update color preview
+        function updateColorPreview() {
+            const r = parseInt(document.getElementById('r-input').value) || 0;
+            const g = parseInt(document.getElementById('g-input').value) || 0;
+            const b = parseInt(document.getElementById('b-input').value) || 0;
+            
+            document.getElementById('color-preview').style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // Event listeners for RGB inputs
+        document.getElementById('r-input').addEventListener('input', updateColorPreview);
+        document.getElementById('g-input').addEventListener('input', updateColorPreview);
+        document.getElementById('b-input').addEventListener('input', updateColorPreview);
+
+        // Convert single RGB to YUV
+        function convertSingle() {
+            try {
+                hideError();
+                const r = parseInt(document.getElementById('r-input').value) || 0;
+                const g = parseInt(document.getElementById('g-input').value) || 0;
+                const b = parseInt(document.getElementById('b-input').value) || 0;
+                
+                const yuv = rgbToYuv(r, g, b);
+                const platform = document.getElementById('platform-select').value;
+                
+                // Create mock image data for PPG processing
+                ppgConverter.initAlgo(100, 100, 1);
+                const imageSize = 100 * 100;
+                const yArray = new Uint8Array(imageSize).fill(yuv.y);
+                const uArray = new Uint8Array(imageSize / 2).fill(yuv.u);
+                const vArray = new Uint8Array(imageSize / 2).fill(yuv.v);
+                
+                // Get PPG results
+                const ppgResult = ppgConverter.convertFrame2PPG(
+                    Date.now(),
+                    yArray,
+                    uArray,
+                    vArray,
+                    platform
+                );
+                
+                displayResults([{
+                    rgb: { r, g, b },
+                    yuv: yuv,
+                    ppg: ppgResult
+                }], platform);
+                
+            } catch (error) {
+                showError('Error converting single RGB: ' + error.message);
+            }
+        }
+
+        // Convert RGB sequence to YUV
+        function convertSequence() {
+            try {
+                hideError();
+                const sequenceText = document.getElementById('sequence-input').value.trim();
+                if (!sequenceText) {
+                    showError('Please enter an RGB sequence');
+                    return;
+                }
+                
+                const platform = document.getElementById('platform-select').value;
+                const numbers = sequenceText.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+                
+                if (numbers.length % 3 !== 0) {
+                    showError('RGB sequence must contain triplets (multiples of 3 numbers)');
+                    return;
+                }
+                
+                ppgConverter.initAlgo(100, 100, 1);
+                const results = [];
+                
+                for (let i = 0; i < numbers.length; i += 3) {
+                    const r = Math.max(0, Math.min(255, numbers[i]));
+                    const g = Math.max(0, Math.min(255, numbers[i + 1]));
+                    const b = Math.max(0, Math.min(255, numbers[i + 2]));
+                    
+                    const yuv = rgbToYuv(r, g, b);
+                    
+                    // Create mock image data for PPG processing
+                    const imageSize = 100 * 100;
+                    const yArray = new Uint8Array(imageSize).fill(yuv.y);
+                    const uArray = new Uint8Array(imageSize / 2).fill(yuv.u);
+                    const vArray = new Uint8Array(imageSize / 2).fill(yuv.v);
+                    
+                    // Get PPG results
+                    const ppgResult = ppgConverter.convertFrame2PPG(
+                        Date.now() + i,
+                        yArray,
+                        uArray,
+                        vArray,
+                        platform
+                    );
+                    
+                    results.push({
+                        rgb: { r, g, b },
+                        yuv: yuv,
+                        ppg: ppgResult
+                    });
+                }
+                
+                displayResults(results, platform);
+                
+            } catch (error) {
+                showError('Error converting sequence: ' + error.message);
+            }
+        }
+
+        // Display manual conversion results
+        function displayResults(results, platform) {
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';
+            
+            results.forEach((result, index) => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                
+                card.innerHTML = `
+                    <h3>Conversion ${index + 1}</h3>
+                    
+                    <div class="result-grid">
+                        <div class="result-item">
+                            <h4>RGB Input</h4>
+                            <div class="value" style="color: rgb(${result.rgb.r}, ${result.rgb.g}, ${result.rgb.b})">
+                                ${result.rgb.r}, ${result.rgb.g}, ${result.rgb.b}
+                            </div>
+                        </div>
+                        <div class="result-item y-channel">
+                            <h4>Y (Luma)</h4>
+                            <div class="value">${result.yuv.y}</div>
+                        </div>
+                        <div class="result-item u-channel">
+                            <h4>U (Chroma)</h4>
+                            <div class="value">${result.yuv.u}</div>
+                        </div>
+                        <div class="result-item v-channel">
+                            <h4>V (Chroma)</h4>
+                            <div class="value">${result.yuv.v}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="ppg-results">
+                        <h4>PPG Signals (${platform.toUpperCase()}):</h4>
+                        <div class="ppg-grid">
+                            ${result.ppg.signals.slice(0, 15).map((signal, i) => 
+                                `<div class="ppg-value">${signal.toFixed(1)}</div>`
+                            ).join('')}
+                        </div>
+                        
+                        <div class="quality-warning ${result.ppg.qualityWarning ? 'quality-bad' : 'quality-good'}">
+                            Quality: ${result.ppg.qualityWarning ? 'Warning - Poor signal quality' : 'Good signal quality'}
+                        </div>
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(card);
+            });
+        }
+
+        // Clear results
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            hideError();
+        }
+
+        // Error handling
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+        });
+
+        // Initialize
+        updateColorPreview();
+        
+        // Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('data:application/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdmZXRjaCcsIGV2ZW50ID0+IHsKICBldmVudC5yZXNwb25kV2l0aCgKICAgIGZldGNoKGV2ZW50LnJlcXVlc3QpCiAgKQp9KQ==');
+        }
+    </script>
+</body>
+</html>
