@@ -569,6 +569,11 @@
                             </select>
                         </div>
                     </div>
+
+                    <div id="debug-info" style="background: #f8f9fa; border-radius: 10px; padding: 15px; margin-top: 20px; font-family: monospace; font-size: 0.9rem; display: none;">
+                        <h4>Debug Info:</h4>
+                        <div id="debug-log"></div>
+                    </div>
                 </div>
             </div>
 
@@ -623,6 +628,26 @@
     </div>
 
     <script>
+        // Debug logging functions
+        function debugLog(message) {
+            console.log(message);
+            const debugDiv = document.getElementById('debug-log');
+            if (debugDiv) {
+                const timestamp = new Date().toLocaleTimeString();
+                debugDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+                debugDiv.scrollTop = debugDiv.scrollHeight;
+            }
+        }
+
+        function showDebugInfo() {
+            document.getElementById('debug-info').style.display = 'block';
+        }
+
+        function hideDebugInfo() {
+            document.getElementById('debug-info').style.display = 'none';
+            document.getElementById('debug-log').innerHTML = '';
+        }
+
         // Global variables
         let mediaStream = null;
         let recordingFrames = [];
@@ -632,7 +657,8 @@
         let recordingStartTime = 0;
         const RECORDING_DURATION = 10000; // 10 seconds
         const COUNTDOWN_DURATION = 3; // 3 seconds
-        const FRAME_RATE = 30; // frames per second
+        const FRAME_RATE = 10; // Reduced to 10fps for mobile stability
+        const MAX_CANVAS_SIZE = 320; // Limit canvas size to reduce memory usage
 
         // Video2PPGConverter class from uploaded file
         class Video2PPGConverter {
@@ -873,10 +899,14 @@
 
             try {
                 hideError();
+                showDebugInfo();
+                debugLog('Initializing recording...');
+                
                 recordingFrames = [];
                 
                 document.getElementById('record-btn').disabled = true;
                 document.getElementById('stop-btn').style.display = 'inline-block';
+                document.getElementById('stop-btn').disabled = false;
                 document.getElementById('camera-overlay').style.display = 'flex';
                 
                 // Start countdown
@@ -885,22 +915,26 @@
                 const recordingStatus = document.getElementById('recording-status');
                 
                 countdownDisplay.textContent = countdown;
+                debugLog(`Starting ${COUNTDOWN_DURATION} second countdown...`);
                 
                 countdownInterval = setInterval(() => {
                     countdown--;
                     if (countdown > 0) {
                         countdownDisplay.textContent = countdown;
+                        debugLog(`Countdown: ${countdown}`);
                     } else {
                         clearInterval(countdownInterval);
                         countdownDisplay.style.display = 'none';
                         recordingStatus.style.display = 'block';
                         
+                        debugLog('Starting actual recording...');
                         // Start actual recording
                         startActualRecording();
                     }
                 }, 1000);
 
             } catch (error) {
+                debugLog(`Recording failed: ${error.message}`);
                 showError('Failed to start recording: ' + error.message);
                 resetRecordingUI();
             }
@@ -908,69 +942,132 @@
 
         // Start the actual frame capture
         function startActualRecording() {
-            isRecording = true;
-            recordingStartTime = Date.now();
-            
-            const video = document.getElementById('camera-preview');
-            const canvas = document.getElementById('capture-canvas');
-            const ctx = canvas.getContext('2d');
-            
-            canvas.width = video.videoWidth || 640;
-            canvas.height = video.videoHeight || 480;
-            
-            // Capture frames at specified frame rate
-            recordingInterval = setInterval(() => {
-                if (!isRecording) return;
+            try {
+                debugLog('Frame capture started');
+                isRecording = true;
+                recordingStartTime = Date.now();
                 
-                const currentTime = Date.now();
-                const elapsed = currentTime - recordingStartTime;
+                const video = document.getElementById('camera-preview');
+                const canvas = document.getElementById('capture-canvas');
+                const ctx = canvas.getContext('2d');
                 
-                // Update progress bar
-                const progress = Math.min((elapsed / RECORDING_DURATION) * 100, 100);
-                document.getElementById('recording-progress').style.width = progress + '%';
+                // Limit canvas size for mobile performance
+                const originalWidth = video.videoWidth || 640;
+                const originalHeight = video.videoHeight || 480;
+                const scale = Math.min(MAX_CANVAS_SIZE / originalWidth, MAX_CANVAS_SIZE / originalHeight);
                 
-                // Capture frame
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                canvas.width = Math.floor(originalWidth * scale);
+                canvas.height = Math.floor(originalHeight * scale);
                 
-                recordingFrames.push({
-                    timestamp: currentTime,
-                    imageData: imageData,
-                    width: canvas.width,
-                    height: canvas.height
-                });
+                debugLog(`Canvas: ${canvas.width}x${canvas.height} (from ${originalWidth}x${originalHeight})`);
                 
-                // Stop after 10 seconds
-                if (elapsed >= RECORDING_DURATION) {
-                    stopRecording();
-                }
+                let frameCount = 0;
+                let lastLogTime = Date.now();
                 
-            }, 1000 / FRAME_RATE);
+                // Capture frames at specified frame rate
+                recordingInterval = setInterval(() => {
+                    try {
+                        if (!isRecording) return;
+                        
+                        const currentTime = Date.now();
+                        const elapsed = currentTime - recordingStartTime;
+                        
+                        // Update progress bar
+                        const progress = Math.min((elapsed / RECORDING_DURATION) * 100, 100);
+                        document.getElementById('recording-progress').style.width = progress + '%';
+                        
+                        // Log every 2 seconds to avoid spam
+                        if (currentTime - lastLogTime > 2000) {
+                            debugLog(`Recording: ${frameCount} frames, ${Math.round(elapsed/1000)}s elapsed`);
+                            lastLogTime = currentTime;
+                        }
+                        
+                        // Capture frame with error handling
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        
+                        // Process frame immediately to extract just RGB averages (less memory intensive)
+                        const avgRGB = extractAverageRGBFromImageData(imageData);
+                        const yuv = rgbToYuv(avgRGB.r, avgRGB.g, avgRGB.b);
+                        
+                        recordingFrames.push({
+                            timestamp: currentTime,
+                            frameIndex: frameCount,
+                            avgRgb: avgRGB,
+                            yuv: yuv,
+                            width: canvas.width,
+                            height: canvas.height
+                        });
+                        
+                        frameCount++;
+                        
+                        // Update frame counter display
+                        const frameCounter = document.getElementById('frame-counter');
+                        if (frameCounter) {
+                            frameCounter.textContent = `${frameCount} frames`;
+                        }
+                        
+                        // Memory management: limit frames in memory
+                        if (recordingFrames.length > 150) { // Keep last 150 frames max
+                            recordingFrames.shift();
+                        }
+                        
+                        // Stop after 10 seconds
+                        if (elapsed >= RECORDING_DURATION) {
+                            debugLog('Recording duration reached');
+                            stopRecording();
+                        }
+                        
+                    } catch (frameError) {
+                        debugLog(`Frame error: ${frameError.message}`);
+                        showError(`Frame capture error: ${frameError.message}`);
+                        stopRecording();
+                    }
+                    
+                }, 1000 / FRAME_RATE);
+                
+            } catch (error) {
+                debugLog(`Recording start failed: ${error.message}`);
+                showError(`Recording failed to start: ${error.message}`);
+                resetRecordingUI();
+            }
         }
 
         // Stop recording and process frames
         function stopRecording() {
-            isRecording = false;
-            
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-                countdownInterval = null;
+            try {
+                debugLog('Stopping recording...');
+                isRecording = false;
+                
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                
+                if (recordingInterval) {
+                    clearInterval(recordingInterval);
+                    recordingInterval = null;
+                }
+                
+                resetRecordingUI();
+                
+                debugLog(`Recording stopped. Captured ${recordingFrames.length} frames`);
+                
+                if (recordingFrames.length === 0) {
+                    showError('No frames captured during recording');
+                    return;
+                }
+                
+                // Process captured frames
+                processRecordedFrames();
+                
+            } catch (error) {
+                debugLog(`Stop recording error: ${error.message}`);
+                showError('Error stopping recording: ' + error.message);
+                resetRecordingUI();
             }
-            
-            if (recordingInterval) {
-                clearInterval(recordingInterval);
-                recordingInterval = null;
-            }
-            
-            resetRecordingUI();
-            
-            if (recordingFrames.length === 0) {
-                showError('No frames captured during recording');
-                return;
-            }
-            
-            // Process captured frames
-            processRecordedFrames();
         }
 
         // Reset UI after recording
@@ -981,50 +1078,93 @@
             document.getElementById('countdown-display').style.display = 'block';
             document.getElementById('recording-status').style.display = 'none';
             document.getElementById('recording-progress').style.width = '0%';
+            // Keep debug info visible for troubleshooting
         }
 
         // Process recorded frames
         function processRecordedFrames() {
             try {
+                debugLog(`Processing ${recordingFrames.length} recorded frames...`);
+                
+                if (recordingFrames.length === 0) {
+                    showError('No frames captured during recording');
+                    return;
+                }
+                
                 const platform = document.getElementById('camera-platform-select').value;
                 const results = [];
                 
-                // Sample frames (process every 10th frame to reduce processing load)
-                const sampleStep = Math.max(1, Math.floor(recordingFrames.length / 30));
-                
-                for (let i = 0; i < recordingFrames.length; i += sampleStep) {
-                    const frame = recordingFrames[i];
-                    const rgbData = extractRGBFromImageData(frame.imageData);
-                    const yuvData = rgbToYuvArrays(rgbData);
-                    
-                    // Update PPG converter dimensions if needed
-                    if (ppgConverter.imWidth !== frame.width || ppgConverter.imHeight !== frame.height) {
-                        ppgConverter.initAlgo(frame.width, frame.height, 1);
+                // Process frames (already pre-processed during recording)
+                recordingFrames.forEach((frame, index) => {
+                    try {
+                        // Create mock image arrays for PPG processing using average values
+                        const imageSize = 100 * 100; // Use smaller fixed size for PPG processing
+                        const yArray = new Uint8Array(imageSize).fill(frame.yuv.y);
+                        const uArray = new Uint8Array(imageSize / 2).fill(frame.yuv.u);
+                        const vArray = new Uint8Array(imageSize / 2).fill(frame.yuv.v);
+                        
+                        // Update PPG converter dimensions
+                        ppgConverter.initAlgo(100, 100, 1);
+                        
+                        // Get PPG results
+                        const ppgResult = ppgConverter.convertFrame2PPG(
+                            frame.timestamp,
+                            yArray,
+                            uArray,
+                            vArray,
+                            platform
+                        );
+                        
+                        results.push({
+                            frameIndex: frame.frameIndex,
+                            timestamp: frame.timestamp,
+                            avgRgb: frame.avgRgb,
+                            avgYuv: frame.yuv,
+                            ppg: ppgResult
+                        });
+                        
+                    } catch (frameError) {
+                        debugLog(`Error processing frame ${index}: ${frameError.message}`);
+                        // Continue processing other frames
                     }
-                    
-                    // Get PPG results
-                    const ppgResult = ppgConverter.convertFrame2PPG(
-                        frame.timestamp,
-                        yuvData.y,
-                        yuvData.u,
-                        yuvData.v,
-                        platform
-                    );
-                    
-                    results.push({
-                        frameIndex: i,
-                        timestamp: frame.timestamp,
-                        avgRgb: calculateAverageRGB(rgbData),
-                        avgYuv: calculateAverageYUV(yuvData),
-                        ppg: ppgResult
-                    });
+                });
+                
+                if (results.length === 0) {
+                    showError('Failed to process any frames');
+                    return;
                 }
                 
+                debugLog(`Successfully processed ${results.length} frames`);
                 displayCameraResults(results, platform);
                 
+                // Hide debug info after successful completion
+                setTimeout(() => {
+                    hideDebugInfo();
+                }, 5000);
+                
             } catch (error) {
+                debugLog(`Processing error: ${error.message}`);
                 showError('Error processing recorded frames: ' + error.message);
             }
+        }
+
+        // Extract average RGB from ImageData (more memory efficient)
+        function extractAverageRGBFromImageData(imageData) {
+            const data = imageData.data;
+            let rSum = 0, gSum = 0, bSum = 0;
+            const pixelCount = data.length / 4;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                rSum += data[i];
+                gSum += data[i + 1];
+                bSum += data[i + 2];
+            }
+            
+            return {
+                r: Math.round(rSum / pixelCount),
+                g: Math.round(gSum / pixelCount),
+                b: Math.round(bSum / pixelCount)
+            };
         }
 
         // Extract RGB data from ImageData
