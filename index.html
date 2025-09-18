@@ -749,8 +749,9 @@
                     }
                 }
 
-                const maxIntensity = 1100;
-                const minIntensity = 400;
+                // Adjusted thresholds for smartphone camera recordings
+                const maxIntensity = 250; // Lowered from 1100 to realistic smartphone values
+                const minIntensity = 50;  // Lowered from 400 to realistic smartphone values
                 const qualityWarning = maxY < maxIntensity && minY > minIntensity ? false : true;
 
                 return [ppgValues, qualityWarning];
