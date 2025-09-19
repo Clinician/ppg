@@ -1004,11 +1004,12 @@
             }
         }
 
-        // Start the actual frame capture
+        // Start the actual frame capture (called after quality check passes)
         function startActualRecording() {
             try {
                 debugLog('Frame capture started');
                 isRecording = true;
+                isCheckingQuality = false; // Make sure quality check is stopped
                 recordingStartTime = Date.now();
                 
                 const video = document.getElementById('camera-preview');
@@ -1038,7 +1039,10 @@
                         
                         // Update progress bar
                         const progress = Math.min((elapsed / RECORDING_DURATION) * 100, 100);
-                        document.getElementById('recording-progress').style.width = progress + '%';
+                        const progressBar = document.getElementById('recording-progress');
+                        if (progressBar) {
+                            progressBar.style.width = progress + '%';
+                        }
                         
                         // Log every 2 seconds to avoid spam
                         if (currentTime - lastLogTime > 2000) {
@@ -1143,16 +1147,30 @@
             document.getElementById('record-btn').disabled = false;
             document.getElementById('stop-btn').style.display = 'none';
             document.getElementById('camera-overlay').style.display = 'none';
-            document.getElementById('quality-check-display').style.display = 'block';
-            document.getElementById('recording-status').style.display = 'none';
             document.getElementById('recording-progress').style.width = '0%';
             
-            // Reset quality check display
+            // Reset quality check display elements safely
+            const qualityCheckDisplay = document.getElementById('quality-check-display');
+            const recordingStatus = document.getElementById('recording-status');
             const qualityStatus = document.getElementById('quality-status');
             const qualitySamples = document.getElementById('quality-samples');
-            qualityStatus.innerHTML = '🔍 Checking signal quality...';
-            qualityStatus.style.color = '#ffd700';
-            qualitySamples.textContent = 'Samples: 0/5';
+            
+            if (qualityCheckDisplay) {
+                qualityCheckDisplay.style.display = 'block';
+            }
+            
+            if (recordingStatus) {
+                recordingStatus.style.display = 'none';
+            }
+            
+            if (qualityStatus) {
+                qualityStatus.innerHTML = '🔍 Checking signal quality...';
+                qualityStatus.style.color = '#ffd700';
+            }
+            
+            if (qualitySamples) {
+                qualitySamples.textContent = 'Samples: 0/5';
+            }
             
             // Keep debug info visible for troubleshooting
         }
