@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RGB to YUV + PPG Converter</title>
-    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUkdCIHRvIFlVViBDb252ZXJ0ZXIiLCJzaG9ydF9uYW1lIjoiUkdCMllVViIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZmZmZmZmIiwidGhlbWVfY29sb3IiOiIjMDA3Y2ZmIn0=">
+    <title>PPG Algorithm Comparison Tool</title>
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUFBHIEFsZ29yaXRobSBDb21wYXJpc29uIiwic2hvcnRfbmFtZSI6IlBQR0NvbXAiLCJzdGFydF91cmwiOiIvIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI2ZmZmZmZiIsInRoZW1lX2NvbG9yIjoiIzAwN2NmZiJ9">
     <style>
         * {
             margin: 0;
@@ -20,7 +20,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
@@ -44,6 +44,42 @@
         .header p {
             font-size: 1.1rem;
             opacity: 0.9;
+        }
+
+        .algorithm-selector {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
+            text-align: center;
+        }
+
+        .algorithm-toggle {
+            display: inline-flex;
+            background: white;
+            border-radius: 10px;
+            padding: 5px;
+            border: 2px solid #ddd;
+        }
+
+        .algorithm-option {
+            padding: 12px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .algorithm-option.active {
+            background: #007cff;
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,124,255,0.3);
+        }
+
+        .comparison-mode {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white !important;
         }
 
         .main-content {
@@ -346,6 +382,38 @@
             border-radius: 15px;
             padding: 25px;
             border: 2px solid #e9ecef;
+            position: relative;
+        }
+
+        .result-card.original-algorithm {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #f8fff9 0%, #f0fff4 100%);
+        }
+
+        .result-card.modified-algorithm {
+            border-color: #007cff;
+            background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+        }
+
+        .algorithm-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .algorithm-badge.original {
+            background: #28a745;
+            color: white;
+        }
+
+        .algorithm-badge.modified {
+            background: #007cff;
+            color: white;
         }
 
         .result-card h3 {
@@ -487,6 +555,33 @@
             overflow-y: auto;
         }
 
+        .comparison-summary {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            border: 2px solid #ff9800;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .comparison-summary h3 {
+            color: #e65100;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .comparison-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 2rem;
@@ -516,14 +611,36 @@
             .tab {
                 white-space: nowrap;
             }
+
+            .algorithm-toggle {
+                flex-direction: column;
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>RGB to YUV + PPG Converter</h1>
-            <p>Convert RGB sequences to YUV and extract PPG signals with camera recording</p>
+            <h1>PPG Algorithm Comparison Tool</h1>
+            <p>Compare Original C# Algorithm vs Modified JavaScript Algorithm</p>
+        </div>
+        
+        <div class="algorithm-selector">
+            <div class="algorithm-toggle">
+                <button class="algorithm-option" onclick="setAlgorithmMode('original')" id="original-btn">
+                    🎯 Original C# Algorithm
+                </button>
+                <button class="algorithm-option" onclick="setAlgorithmMode('modified')" id="modified-btn">
+                    🔧 Modified JS Algorithm
+                </button>
+                <button class="algorithm-option active comparison-mode" onclick="setAlgorithmMode('comparison')" id="comparison-btn">
+                    📊 Compare Both
+                </button>
+            </div>
+            <div id="algorithm-info" style="margin-top: 15px; font-size: 0.9rem; color: #666;">
+                <strong>Comparison Mode:</strong> Shows results from both algorithms side-by-side
+            </div>
         </div>
         
         <div class="main-content">
@@ -540,14 +657,11 @@
                         <ul>
                             <li><strong>Click "Start Quality Check"</strong> to begin</li>
                             <li><strong>Place your fingertip</strong> gently over the rear camera</li>
-                            <li><strong>Optional:</strong> Turn on flash using the flash button for better signal</li>
+                            <li><strong>Optional:</strong> Turn on flash using the flash button</li>
                             <li><strong>Wait for quality confirmation</strong> - app checks signal in real-time</li>
                             <li><strong>Recording starts automatically</strong> when signal is good</li>
                             <li><strong>Hold steady</strong> for 10 seconds</li>
                         </ul>
-                        <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 8px; font-size: 0.9rem;">
-                            <strong>Note:</strong> iOS shows Y-channel only (value-0-0), Android shows Y-U-V channels (three values). Both are correct!
-                        </div>
                     </div>
 
                     <div class="camera-container">
@@ -663,7 +777,7 @@
     </div>
 
     <script>
-        // Global variables - completely fresh start
+        // Global variables
         let mediaStream = null;
         let videoTrack = null;
         let flashEnabled = false;
@@ -674,10 +788,11 @@
         let qualityCheckInterval = null;
         let recordingStartTime = 0;
         let lastRecordingResults = null;
+        let algorithmMode = 'comparison'; // 'original', 'modified', 'comparison'
         
         // Constants
-        const RECORDING_DURATION = 10000; // 10 seconds  
-        const FRAME_RATE = 10; // 10fps for mobile
+        const RECORDING_DURATION = 10000;
+        const FRAME_RATE = 10;
         const MAX_CANVAS_SIZE = 320;
         const QUALITY_CHECK_SAMPLES = 5;
 
@@ -705,8 +820,28 @@
             }
         }
 
-        // Video2PPGConverter class from uploaded file
-        class Video2PPGConverter {
+        // Algorithm mode selection
+        function setAlgorithmMode(mode) {
+            algorithmMode = mode;
+            
+            // Update button states
+            document.querySelectorAll('.algorithm-option').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`${mode}-btn`).classList.add('active');
+            
+            // Update info text
+            const infoText = {
+                'original': '<strong>Original Mode:</strong> Uses exact C# algorithm (value-0-0 pattern for iOS)',
+                'modified': '<strong>Modified Mode:</strong> Uses improved JavaScript algorithm',
+                'comparison': '<strong>Comparison Mode:</strong> Shows results from both algorithms side-by-side'
+            };
+            
+            document.getElementById('algorithm-info').innerHTML = infoText[mode];
+            
+            debugLog(`🔄 Algorithm mode: ${mode.toUpperCase()}`);
+        }
+
+        // Original C# Algorithm Implementation
+        class OriginalVideo2PPGConverter {
             constructor() {
                 this.imWidth = 0;
                 this.imHeight = 0;
@@ -732,7 +867,186 @@
                         y, uvOrU, v, nROIs, nROIs, this.imWidth, this.imHeight, this.phoneModel
                     );
                 } else {
-                    throw new Error('Unsupported platform. Use "ios" or "android".');
+                    throw new Error('Unsupported platform');
+                }
+
+                return {
+                    timestamp,
+                    signals: ppgValues,
+                    qualityWarning,
+                };
+            }
+
+            // Original C# iOS Algorithm - exactly as in C# code
+            extractFeaturesiOS(y, nROIsByRow, nROIsByCols, width, height, phoneModel) {
+                const nROIs = nROIsByRow * nROIsByCols;
+                const wStep = Math.floor(width / nROIsByRow);
+                const hStep = Math.floor(height / nROIsByCols);
+                let row = 1;
+                let rest = 0;
+                let maxY = 0;
+                let minY = 100000;
+                const ppgValues = new Array(3 * nROIs + 3).fill(0); // Initialize all to 0
+
+                for (let r = 0; r < nROIs; r++) {
+                    let numPixels = 0;
+                    let roiMeanY = 0;
+
+                    const xOffset = (r * wStep + rest) % width;
+                    const yOffset = Math.floor((r * wStep + rest) / width) * hStep;
+
+                    let roiWidth = ((r + 2) * wStep / width) > row ? width - xOffset : wStep;
+                    if (((r + 2) * wStep / width) > row) {
+                        rest += row * width - ((r + 1) * wStep + rest);
+                        row++;
+                    }
+
+                    const roiHeight = (((r + 2) * wStep / width) * hStep / height) > 1 ? height - yOffset : hStep;
+
+                    for (let i = xOffset; i < xOffset + roiWidth; i++) {
+                        for (let j = yOffset; j < yOffset + roiHeight; j++) {
+                            if (i + j * width < y.length) {
+                                const yVal = y[i + j * width] & 0xff;
+                                roiMeanY += yVal;
+                                numPixels++;
+                            }
+                        }
+                    }
+
+                    if (numPixels > 0) {
+                        // ONLY fill every 3rd element (this creates the value-0-0 pattern!)
+                        ppgValues[3 * r] = roiMeanY / numPixels;
+                        // ppgValues[3 * r + 1] and ppgValues[3 * r + 2] stay 0
+                        
+                        if (ppgValues[3 * r] > maxY) maxY = ppgValues[3 * r];
+                        if (ppgValues[3 * r] < minY) minY = ppgValues[3 * r];
+                    }
+                }
+
+                // Original C# thresholds
+                const maxIntensity = 1100;
+                const minIntensity = 400;
+                let qualityWarning = !(maxY < maxIntensity && minY > minIntensity);
+                
+                // Original C# always overrides to false at the end!
+                qualityWarning = false;
+
+                return [ppgValues, qualityWarning];
+            }
+
+            // Original C# Android Algorithm
+            extractFeaturesAndroid(y, u, v, nROIsByRow, nROIsByCols, width, height, phoneModel) {
+                const nROIs = nROIsByRow * nROIsByCols;
+                const wStep = Math.floor(width / nROIsByRow);
+                const hStep = Math.floor(height / nROIsByCols);
+                let row = 1;
+                let rest = 0;
+                let maxY = 0;
+                let minY = 100000;
+                let varY = 0;
+                const ppgValues = new Array(3 * nROIs + 3).fill(0);
+
+                for (let r = 0; r < nROIs; r++) {
+                    let numPixels = 0;
+                    let roiMeanY = 0;
+                    let roiMeanU = 0;
+                    let roiMeanV = 0;
+                    let smsqY = 0;
+
+                    const xOffset = (r * wStep + rest) % width;
+                    const yOffset = Math.floor((r * wStep + rest) / width) * hStep;
+
+                    let roiWidth = ((r + 2) * wStep / width) > row ? width - xOffset : wStep;
+                    if (((r + 2) * wStep / width) > row) {
+                        rest += row * width - ((r + 1) * wStep + rest);
+                        row++;
+                    }
+
+                    const roiHeight = (((r + 2) * wStep / width) * hStep / height) > 1 ? height - yOffset : hStep;
+
+                    for (let i = xOffset; i < xOffset + roiWidth; i++) {
+                        for (let j = yOffset; j < yOffset + roiHeight; j++) {
+                            if (i + j * width < y.length) {
+                                const xBy2 = Math.floor(i / 2);
+                                const yBy2 = Math.floor(j / 2);
+                                const yVal = y[i + j * width] & 0xff;
+                                const index = 2 * xBy2 + yBy2 * width;
+                                let uVal = 128, vVal = 128;
+
+                                // Original C# array access pattern
+                                if (u && v) {
+                                    if (index < u.length) {
+                                        uVal = u[index] & 0xff;
+                                    } else if (index - u.length < v.length) {
+                                        uVal = v[index - u.length] & 0xff;
+                                    }
+                                    if (index + 1 < u.length) {
+                                        vVal = u[index + 1] & 0xff;
+                                    } else if (index + 1 - u.length < v.length) {
+                                        vVal = v[index + 1 - u.length] & 0xff;
+                                    }
+                                }
+
+                                roiMeanY += yVal;
+                                roiMeanU += uVal;
+                                roiMeanV += vVal;
+                                smsqY += uVal * uVal;
+                                numPixels++;
+                            }
+                        }
+                    }
+
+                    if (numPixels > 0) {
+                        ppgValues[3 * r] = roiMeanY / numPixels;
+                        ppgValues[3 * r + 1] = roiMeanU / numPixels;
+                        ppgValues[3 * r + 2] = roiMeanV / numPixels;
+
+                        const tmpY = Math.sqrt(Math.max(0, smsqY / numPixels - (roiMeanU / numPixels) ** 2));
+                        if (tmpY > varY) varY = tmpY;
+                        if (ppgValues[3 * r + 1] > maxY) maxY = ppgValues[3 * r + 1];
+                        if (ppgValues[3 * r + 1] < minY) minY = ppgValues[3 * r + 1];
+                    }
+                }
+
+                // Original C# thresholds
+                const maxVar = 10;
+                const maxIntensity = 150;
+                const minIntensity = 10;
+                let qualityWarning = !(varY < maxVar && maxY < maxIntensity && minY > minIntensity);
+                
+                // Original C# always overrides to false at the end!
+                qualityWarning = false;
+
+                return [ppgValues, qualityWarning];
+            }
+        }
+
+        // Modified Algorithm Implementation (current improved version)
+        class ModifiedVideo2PPGConverter {
+            constructor() {
+                this.imWidth = 0;
+                this.imHeight = 0;
+                this.phoneModel = 0;
+            }
+
+            initAlgo(width, height, phoneModel) {
+                this.imWidth = width;
+                this.imHeight = height;
+                this.phoneModel = phoneModel;
+            }
+
+            convertFrame2PPG(timestamp, y, uvOrU, v, platform) {
+                const nROIs = 3;
+                let ppgValues, qualityWarning;
+
+                if (platform === 'ios') {
+                    [ppgValues, qualityWarning] = this.extractFeaturesiOS(
+                        y, nROIs, nROIs, this.imWidth, this.imHeight, this.phoneModel
+                    );
+                } else if (platform === 'android') {
+                    [ppgValues, qualityWarning] = this.extractFeaturesAndroid(
+                        y, uvOrU, v, nROIs, nROIs, this.imWidth, this.imHeight, this.phoneModel
+                    );
                 }
 
                 return {
@@ -784,10 +1098,10 @@
                     }
                 }
 
-                // Smartphone-optimized thresholds for iOS
+                // Modified smartphone-optimized thresholds
                 const maxIntensity = 250;
                 const minIntensity = 50;
-                const qualityWarning = maxY < maxIntensity && minY > minIntensity ? false : true;
+                const qualityWarning = !(maxY < maxIntensity && minY > minIntensity);
 
                 return [ppgValues, qualityWarning];
             }
@@ -867,14 +1181,15 @@
                 const maxVar = 10;
                 const maxIntensity = 150;
                 const minIntensity = 10;
-                const qualityWarning = varY < maxVar && maxY < maxIntensity && minY > minIntensity ? false : true;
+                const qualityWarning = !(varY < maxVar && maxY < maxIntensity && minY > minIntensity);
 
                 return [ppgValues, qualityWarning];
             }
         }
 
-        // Initialize PPG converter
-        const ppgConverter = new Video2PPGConverter();
+        // Initialize both converters
+        const originalConverter = new OriginalVideo2PPGConverter();
+        const modifiedConverter = new ModifiedVideo2PPGConverter();
 
         // Tab switching
         function switchTab(tabName) {
@@ -884,57 +1199,43 @@
             document.getElementById(`${tabName}-tab`).classList.add('active');
         }
 
-        // Camera initialization
+        // Camera functions (same as before but with algorithm comparison)
         async function initCamera() {
             try {
                 hideError();
                 debugLog('🎥 Initializing camera...');
                 
-                // Try different camera selection approaches for iOS compatibility
                 let constraints = {
                     video: {
-                        facingMode: "environment", // Remove "exact" to be more flexible
+                        facingMode: "environment",
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
                     }
                 };
 
                 try {
-                    // First try with basic environment facing mode
                     mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 } catch (error) {
                     debugLog('⚠️ First camera attempt failed, trying fallback...');
-                    // Fallback: try with less specific constraints
-                    constraints = {
-                        video: {
-                            facingMode: "environment"
-                        }
-                    };
+                    constraints = { video: { facingMode: "environment" } };
                     mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 }
 
                 videoTrack = mediaStream.getVideoTracks()[0];
-                
                 const video = document.getElementById('camera-preview');
                 video.srcObject = mediaStream;
 
-                // Log camera info for debugging
                 const settings = videoTrack.getSettings();
-                debugLog(`📹 Camera selected: ${settings.width}x${settings.height}`);
-                if (settings.deviceId) {
-                    debugLog(`📹 Device ID: ${settings.deviceId.substring(0, 8)}...`);
-                }
+                debugLog(`📹 Camera: ${settings.width}x${settings.height}`);
 
-                // Check if flash/torch is available but DON'T turn it on automatically
                 if (videoTrack?.getCapabilities?.()?.torch) {
                     document.getElementById('toggle-flash-btn').style.display = 'inline-block';
                     document.getElementById('toggle-flash-btn').disabled = false;
-                    document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash';
-                    flashEnabled = false; // Start with flash OFF
-                    debugLog('🔦 Flash available but OFF by default');
+                    flashEnabled = false;
+                    debugLog('🔦 Flash available (OFF by default)');
                 } else {
                     document.getElementById('toggle-flash-btn').style.display = 'none';
-                    debugLog('⚠️ Flash not available on this device');
+                    debugLog('⚠️ Flash not available');
                 }
 
                 document.getElementById('start-camera-btn').style.display = 'none';
@@ -943,11 +1244,12 @@
                 document.getElementById('record-btn').disabled = false;
                 
                 video.addEventListener('loadedmetadata', () => {
-                    ppgConverter.initAlgo(video.videoWidth || 640, video.videoHeight || 480, 1);
+                    originalConverter.initAlgo(video.videoWidth || 640, video.videoHeight || 480, 1);
+                    modifiedConverter.initAlgo(video.videoWidth || 640, video.videoHeight || 480, 1);
                     debugLog(`📐 PPG initialized: ${video.videoWidth}x${video.videoHeight}`);
                 });
 
-                debugLog('✅ Camera ready (flash OFF)');
+                debugLog('✅ Camera ready');
 
             } catch (error) {
                 debugLog(`❌ Camera failed: ${error.message}`);
@@ -955,7 +1257,7 @@
             }
         }
 
-        // Flash control
+        // Flash control functions
         async function enableFlash() {
             try {
                 if (videoTrack?.getCapabilities?.()?.torch) {
@@ -998,7 +1300,7 @@
             }
         }
 
-        // NEW: Quality check first - NO COUNTDOWN
+        // Quality check and recording functions
         function startQualityCheck() {
             if (!mediaStream) {
                 showError('Please enable camera first');
@@ -1008,14 +1310,12 @@
             try {
                 hideError();
                 showDebugInfo();
-                debugLog('🔍 STARTING QUALITY CHECK - NO COUNTDOWN!');
+                debugLog(`🔍 QUALITY CHECK (${algorithmMode.toUpperCase()} mode)`);
                 
-                // Reset state
                 recordingFrames = [];
                 isCheckingQuality = true;
                 isRecording = false;
                 
-                // Clear any existing intervals
                 if (qualityCheckInterval) {
                     clearInterval(qualityCheckInterval);
                     qualityCheckInterval = null;
@@ -1025,7 +1325,6 @@
                     recordingInterval = null;
                 }
                 
-                // Update UI
                 document.getElementById('record-btn').disabled = true;
                 document.getElementById('stop-btn').style.display = 'inline-block';
                 document.getElementById('stop-btn').disabled = false;
@@ -1033,8 +1332,10 @@
                 document.getElementById('quality-check-display').style.display = 'block';
                 document.getElementById('recording-status').style.display = 'none';
                 
-                // Start quality sampling immediately
-                runQualityCheck();
+                setTimeout(() => {
+                    debugLog('Starting quality check sampling...');
+                    runQualityCheck();
+                }, 500);
                 
             } catch (error) {
                 debugLog(`❌ Quality check failed: ${error.message}`);
@@ -1043,14 +1344,12 @@
             }
         }
 
-        // Quality sampling loop
         function runQualityCheck() {
             const platform = document.getElementById('camera-platform-select').value;
             const video = document.getElementById('camera-preview');
             const canvas = document.getElementById('capture-canvas');
             const ctx = canvas.getContext('2d');
             
-            // Setup canvas
             const originalWidth = video.videoWidth || 640;
             const originalHeight = video.videoHeight || 480;
             const scale = Math.min(MAX_CANVAS_SIZE / originalWidth, MAX_CANVAS_SIZE / originalHeight);
@@ -1061,13 +1360,12 @@
             let goodSamples = 0;
             let totalSamples = 0;
             
-            debugLog(`🔍 Quality check started (${platform})`);
+            debugLog(`🔍 Quality check (${platform}, ${algorithmMode})`);
             
             qualityCheckInterval = setInterval(() => {
                 if (!isCheckingQuality) return;
                 
                 try {
-                    // Capture frame
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
@@ -1075,20 +1373,23 @@
                     const avgRGB = extractAverageRGBFromImageData(imageData);
                     const yuv = rgbToYuv(avgRGB.r, avgRGB.g, avgRGB.b);
                     
-                    // Test PPG quality
+                    // Test quality using the appropriate algorithm
                     const imageSize = 100 * 100;
                     const yArray = new Uint8Array(imageSize).fill(yuv.y);
                     const uArray = new Uint8Array(imageSize / 2).fill(yuv.u);
                     const vArray = new Uint8Array(imageSize / 2).fill(yuv.v);
                     
-                    ppgConverter.initAlgo(100, 100, 1);
-                    const ppgResult = ppgConverter.convertFrame2PPG(
-                        Date.now(), yArray, uArray, vArray, platform
-                    );
+                    let ppgResult;
+                    if (algorithmMode === 'original') {
+                        originalConverter.initAlgo(100, 100, 1);
+                        ppgResult = originalConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
+                    } else {
+                        modifiedConverter.initAlgo(100, 100, 1);
+                        ppgResult = modifiedConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
+                    }
                     
                     totalSamples++;
                     
-                    // Update UI
                     const qualityStatus = document.getElementById('quality-status');
                     const qualityDetails = document.getElementById('quality-details');
                     const qualitySamples = document.getElementById('quality-samples');
@@ -1107,21 +1408,18 @@
                     
                     qualitySamples.textContent = `Good samples: ${goodSamples}/${QUALITY_CHECK_SAMPLES}`;
                     
-                    // Start recording when we have enough good samples
                     if (goodSamples >= QUALITY_CHECK_SAMPLES) {
                         debugLog('🎬 Quality check PASSED - starting recording!');
                         clearInterval(qualityCheckInterval);
                         qualityCheckInterval = null;
                         isCheckingQuality = false;
                         
-                        // Switch to recording mode
                         document.getElementById('quality-check-display').style.display = 'none';
                         document.getElementById('recording-status').style.display = 'block';
                         
                         startRecording();
                     }
                     
-                    // Safety timeout
                     if (totalSamples > 300) {
                         debugLog('⏰ Quality check timeout - starting anyway');
                         clearInterval(qualityCheckInterval);
@@ -1141,10 +1439,9 @@
             }, 1000 / FRAME_RATE);
         }
 
-        // Start actual recording (called after quality check passes)
         function startRecording() {
             try {
-                debugLog('🎬 RECORDING STARTED (after quality check)');
+                debugLog(`🎬 RECORDING (${algorithmMode} mode)`);
                 isRecording = true;
                 recordingStartTime = Date.now();
                 
@@ -1163,7 +1460,6 @@
                     const progressBar = document.getElementById('recording-progress');
                     if (progressBar) progressBar.style.width = progress + '%';
                     
-                    // Capture frame
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
@@ -1185,12 +1481,10 @@
                     const frameCounter = document.getElementById('frame-counter');
                     if (frameCounter) frameCounter.textContent = `${frameCount} frames`;
                     
-                    // Memory management
                     if (recordingFrames.length > 150) {
                         recordingFrames.shift();
                     }
                     
-                    // Stop after duration
                     if (elapsed >= RECORDING_DURATION) {
                         stopRecording();
                     }
@@ -1204,7 +1498,6 @@
             }
         }
 
-        // Stop recording
         function stopRecording() {
             debugLog('⏹️ Stopping...');
             
@@ -1220,9 +1513,6 @@
                 recordingInterval = null;
             }
             
-            // DON'T automatically turn off flash - let user control it
-            // disableFlash(); // REMOVED - flash stays in user's preferred state
-            
             resetUI();
             
             if (recordingFrames.length > 0) {
@@ -1233,14 +1523,12 @@
             }
         }
 
-        // Reset UI
         function resetUI() {
             document.getElementById('record-btn').disabled = false;
             document.getElementById('stop-btn').style.display = 'none';
             document.getElementById('camera-overlay').style.display = 'none';
             document.getElementById('recording-progress').style.width = '0%';
             
-            // Reset quality display
             const qualityStatus = document.getElementById('quality-status');
             const qualityDetails = document.getElementById('quality-details');
             const qualitySamples = document.getElementById('quality-samples');
@@ -1253,57 +1541,8 @@
             if (qualitySamples) qualitySamples.textContent = 'Good samples: 0/5';
         }
 
-        // Process recorded frames
-        function processFrames() {
-            try {
-                const platform = document.getElementById('camera-platform-select').value;
-                const results = [];
-                
-                recordingFrames.forEach((frame) => {
-                    const imageSize = 100 * 100;
-                    const yArray = new Uint8Array(imageSize).fill(frame.yuv.y);
-                    const uArray = new Uint8Array(imageSize / 2).fill(frame.yuv.u);
-                    const vArray = new Uint8Array(imageSize / 2).fill(frame.yuv.v);
-                    
-                    ppgConverter.initAlgo(100, 100, 1);
-                    const ppgResult = ppgConverter.convertFrame2PPG(
-                        frame.timestamp, yArray, uArray, vArray, platform
-                    );
-                    
-                    results.push({
-                        frameIndex: frame.frameIndex,
-                        timestamp: frame.timestamp,
-                        avgRgb: frame.avgRgb,
-                        avgYuv: frame.yuv,
-                        ppg: ppgResult
-                    });
-                });
-                
-                // Store for export
-                lastRecordingResults = {
-                    type: 'camera_recording',
-                    platform: platform,
-                    timestamp: new Date().toISOString(),
-                    frameCount: results.length,
-                    duration: results.length > 1 ? (results[results.length - 1].timestamp - results[0].timestamp) : 0,
-                    data: results
-                };
-                
-                debugLog(`✅ Processed ${results.length} frames successfully`);
-                displayResults(results, platform, 'camera');
-                
-                setTimeout(hideDebugInfo, 3000);
-                
-            } catch (error) {
-                debugLog(`❌ Processing error: ${error.message}`);
-                showError('Processing failed: ' + error.message);
-            }
-        }
-
-        // Disable camera
         async function disableCamera() {
             try {
-                // Turn off flash first if it's on
                 if (flashEnabled) {
                     await disableFlash();
                 }
@@ -1314,24 +1553,21 @@
                     videoTrack = null;
                 }
                 
-                // Reset UI elements
                 document.getElementById('start-camera-btn').style.display = 'inline-block';
                 document.getElementById('disable-camera-btn').style.display = 'none';
                 document.getElementById('record-btn').disabled = true;
                 document.getElementById('toggle-flash-btn').style.display = 'none';
-                document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash'; // Reset button text
+                document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash';
                 document.getElementById('camera-preview').srcObject = null;
                 
-                flashEnabled = false; // Reset flash state
-                
-                debugLog('📹 Camera disabled and flash turned off');
+                flashEnabled = false;
+                debugLog('📹 Camera disabled');
                 
             } catch (error) {
                 showError('Error disabling camera: ' + error.message);
             }
         }
 
-        // Extract average RGB from ImageData
         function extractAverageRGBFromImageData(imageData) {
             const data = imageData.data;
             let rSum = 0, gSum = 0, bSum = 0;
@@ -1350,7 +1586,6 @@
             };
         }
 
-        // RGB to YUV conversion
         function rgbToYuv(r, g, b) {
             const Y = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
             const U = Math.round(-0.14713 * r - 0.28886 * g + 0.436 * b + 128);
@@ -1361,6 +1596,69 @@
                 u: Math.max(0, Math.min(255, U)),
                 v: Math.max(0, Math.min(255, V))
             };
+        }
+
+        function processFrames() {
+            try {
+                const platform = document.getElementById('camera-platform-select').value;
+                const originalResults = [];
+                const modifiedResults = [];
+                
+                recordingFrames.forEach((frame) => {
+                    const imageSize = 100 * 100;
+                    const yArray = new Uint8Array(imageSize).fill(frame.yuv.y);
+                    const uArray = new Uint8Array(imageSize / 2).fill(frame.yuv.u);
+                    const vArray = new Uint8Array(imageSize / 2).fill(frame.yuv.v);
+                    
+                    // Process with original algorithm
+                    originalConverter.initAlgo(100, 100, 1);
+                    const originalPpg = originalConverter.convertFrame2PPG(
+                        frame.timestamp, yArray, uArray, vArray, platform
+                    );
+                    
+                    originalResults.push({
+                        frameIndex: frame.frameIndex,
+                        timestamp: frame.timestamp,
+                        avgRgb: frame.avgRgb,
+                        avgYuv: frame.yuv,
+                        ppg: originalPpg
+                    });
+                    
+                    // Process with modified algorithm
+                    modifiedConverter.initAlgo(100, 100, 1);
+                    const modifiedPpg = modifiedConverter.convertFrame2PPG(
+                        frame.timestamp, yArray, uArray, vArray, platform
+                    );
+                    
+                    modifiedResults.push({
+                        frameIndex: frame.frameIndex,
+                        timestamp: frame.timestamp,
+                        avgRgb: frame.avgRgb,
+                        avgYuv: frame.yuv,
+                        ppg: modifiedPpg
+                    });
+                });
+                
+                // Store results for export
+                lastRecordingResults = {
+                    type: 'camera_recording',
+                    platform: platform,
+                    timestamp: new Date().toISOString(),
+                    frameCount: originalResults.length,
+                    duration: originalResults.length > 1 ? (originalResults[originalResults.length - 1].timestamp - originalResults[0].timestamp) : 0,
+                    originalData: originalResults,
+                    modifiedData: modifiedResults
+                };
+                
+                debugLog(`✅ Processed ${originalResults.length} frames with both algorithms`);
+                displayResults(originalResults, modifiedResults, platform, 'camera');
+                
+                setTimeout(hideDebugInfo, 3000);
+                
+            } catch (error) {
+                debugLog(`❌ Processing error: ${error.message}`);
+                showError('Processing failed: ' + error.message);
+            }
         }
 
         // Manual input functions
@@ -1382,29 +1680,43 @@
                 const yuv = rgbToYuv(r, g, b);
                 const platform = document.getElementById('platform-select').value;
                 
-                ppgConverter.initAlgo(100, 100, 1);
                 const imageSize = 100 * 100;
                 const yArray = new Uint8Array(imageSize).fill(yuv.y);
                 const uArray = new Uint8Array(imageSize / 2).fill(yuv.u);
                 const vArray = new Uint8Array(imageSize / 2).fill(yuv.v);
                 
-                const ppgResult = ppgConverter.convertFrame2PPG(
-                    Date.now(), yArray, uArray, vArray, platform
-                );
+                // Process with both algorithms
+                originalConverter.initAlgo(100, 100, 1);
+                const originalPpg = originalConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
                 
-                const results = [{
+                modifiedConverter.initAlgo(100, 100, 1);
+                const modifiedPpg = modifiedConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
+                
+                const originalResults = [{
                     rgb: { r, g, b },
                     yuv: yuv,
-                    ppg: ppgResult
+                    ppg: originalPpg
                 }];
                 
-                // Store for export
+                const modifiedResults = [{
+                    rgb: { r, g, b },
+                    yuv: yuv,
+                    ppg: modifiedPpg
+                }];
+                
                 lastRecordingResults = {
                     type: 'manual_input',
                     platform: platform,
                     timestamp: new Date().toISOString(),
                     frameCount: 1,
-                    data: results.map((result, index) => ({
+                    originalData: originalResults.map((result, index) => ({
+                        frameIndex: index,
+                        timestamp: Date.now(),
+                        avgRgb: result.rgb,
+                        avgYuv: result.yuv,
+                        ppg: result.ppg
+                    })),
+                    modifiedData: modifiedResults.map((result, index) => ({
                         frameIndex: index,
                         timestamp: Date.now(),
                         avgRgb: result.rgb,
@@ -1413,7 +1725,7 @@
                     }))
                 };
                 
-                displayResults(results, platform, 'manual');
+                displayResults(originalResults, modifiedResults, platform, 'manual');
                 
             } catch (error) {
                 showError('Error converting single RGB: ' + error.message);
@@ -1437,8 +1749,8 @@
                     return;
                 }
                 
-                ppgConverter.initAlgo(100, 100, 1);
-                const results = [];
+                const originalResults = [];
+                const modifiedResults = [];
                 
                 for (let i = 0; i < numbers.length; i += 3) {
                     const r = Math.max(0, Math.min(255, numbers[i]));
@@ -1452,24 +1764,39 @@
                     const uArray = new Uint8Array(imageSize / 2).fill(yuv.u);
                     const vArray = new Uint8Array(imageSize / 2).fill(yuv.v);
                     
-                    const ppgResult = ppgConverter.convertFrame2PPG(
-                        Date.now() + i, yArray, uArray, vArray, platform
-                    );
+                    // Process with both algorithms
+                    originalConverter.initAlgo(100, 100, 1);
+                    const originalPpg = originalConverter.convertFrame2PPG(Date.now() + i, yArray, uArray, vArray, platform);
                     
-                    results.push({
+                    modifiedConverter.initAlgo(100, 100, 1);
+                    const modifiedPpg = modifiedConverter.convertFrame2PPG(Date.now() + i, yArray, uArray, vArray, platform);
+                    
+                    originalResults.push({
                         rgb: { r, g, b },
                         yuv: yuv,
-                        ppg: ppgResult
+                        ppg: originalPpg
+                    });
+                    
+                    modifiedResults.push({
+                        rgb: { r, g, b },
+                        yuv: yuv,
+                        ppg: modifiedPpg
                     });
                 }
                 
-                // Store for export
                 lastRecordingResults = {
                     type: 'manual_input',
                     platform: platform,
                     timestamp: new Date().toISOString(),
-                    frameCount: results.length,
-                    data: results.map((result, index) => ({
+                    frameCount: originalResults.length,
+                    originalData: originalResults.map((result, index) => ({
+                        frameIndex: index,
+                        timestamp: Date.now(),
+                        avgRgb: result.rgb,
+                        avgYuv: result.yuv,
+                        ppg: result.ppg
+                    })),
+                    modifiedData: modifiedResults.map((result, index) => ({
                         frameIndex: index,
                         timestamp: Date.now(),
                         avgRgb: result.rgb,
@@ -1478,38 +1805,79 @@
                     }))
                 };
                 
-                displayResults(results, platform, 'manual');
+                displayResults(originalResults, modifiedResults, platform, 'manual');
                 
             } catch (error) {
                 showError('Error converting sequence: ' + error.message);
             }
         }
 
-        // Display results
-        function displayResults(results, platform, type) {
+        // Display results with comparison
+        function displayResults(originalResults, modifiedResults, platform, type) {
             const resultsContainer = document.getElementById('results');
             resultsContainer.innerHTML = '';
             
-            // Export card
-            if (results.length > 0) {
+            // Export card with both algorithm options
+            if (originalResults.length > 0) {
                 const exportCard = document.createElement('div');
                 exportCard.className = 'result-card';
                 exportCard.innerHTML = `
                     <h3>📤 Export Results</h3>
                     <p><strong>Type:</strong> ${type === 'camera' ? 'Camera Recording' : 'Manual Input'}</p>
                     <p><strong>Platform:</strong> ${platform.toUpperCase()}</p>
-                    <p><strong>Frames:</strong> ${results.length}</p>
+                    <p><strong>Frames:</strong> ${originalResults.length}</p>
                     <div class="controls" style="margin-top: 15px;">
-                        <button class="btn btn-primary" onclick="exportPPGData('json')">📄 JSON</button>
-                        <button class="btn btn-primary" onclick="exportPPGData('csv')">📊 CSV</button>
-                        <button class="btn btn-secondary" onclick="exportPPGData('txt')">📝 TXT</button>
+                        <button class="btn btn-primary" onclick="exportPPGData('json', 'original')">📄 Original JSON</button>
+                        <button class="btn btn-primary" onclick="exportPPGData('json', 'modified')">📄 Modified JSON</button>
+                        <button class="btn btn-primary" onclick="exportPPGData('csv', 'comparison')">📊 Comparison CSV</button>
                         <button class="btn btn-secondary" onclick="sharePPGData()">📤 Share</button>
                     </div>
                 `;
                 resultsContainer.appendChild(exportCard);
             }
             
-            // Frame results
+            // Show comparison summary if both algorithms have data
+            if (algorithmMode === 'comparison' || algorithmMode === 'original' || algorithmMode === 'modified') {
+                const comparisonCard = document.createElement('div');
+                comparisonCard.className = 'comparison-summary';
+                
+                const firstOriginal = originalResults[0];
+                const firstModified = modifiedResults[0];
+                
+                comparisonCard.innerHTML = `
+                    <h3>🔍 Algorithm Comparison Summary</h3>
+                    <div class="comparison-grid">
+                        <div class="comparison-item">
+                            <h4>Original C# Algorithm</h4>
+                            <p><strong>Quality:</strong> ${firstOriginal.ppg.qualityWarning ? 'Warning' : 'Good'} (Always Good in C#)</p>
+                            <p><strong>iOS Pattern:</strong> value-0-0 (Y only)</p>
+                            <p><strong>Thresholds:</strong> iOS: 400-1100, Android: 10-150</p>
+                        </div>
+                        <div class="comparison-item">
+                            <h4>Modified JS Algorithm</h4>
+                            <p><strong>Quality:</strong> ${firstModified.ppg.qualityWarning ? 'Warning' : 'Good'} (Actual check)</p>
+                            <p><strong>iOS Pattern:</strong> value-0-0 (Y only)</p>
+                            <p><strong>Thresholds:</strong> iOS: 50-250 (smartphone optimized)</p>
+                        </div>
+                    </div>
+                `;
+                resultsContainer.appendChild(comparisonCard);
+            }
+            
+            // Display results based on algorithm mode
+            if (algorithmMode === 'original') {
+                displayAlgorithmResults(originalResults, platform, type, 'original');
+            } else if (algorithmMode === 'modified') {
+                displayAlgorithmResults(modifiedResults, platform, type, 'modified');
+            } else if (algorithmMode === 'comparison') {
+                displayAlgorithmResults(originalResults, platform, type, 'original');
+                displayAlgorithmResults(modifiedResults, platform, type, 'modified');
+            }
+        }
+
+        function displayAlgorithmResults(results, platform, type, algorithm) {
+            const resultsContainer = document.getElementById('results');
+            
             const framesToShow = type === 'camera' && results.length > 3 ? 
                 [0, Math.floor(results.length / 2), results.length - 1] : 
                 results.map((_, i) => i);
@@ -1518,17 +1886,17 @@
                 if (index >= 0 && index < results.length) {
                     const result = results[index];
                     const card = document.createElement('div');
-                    card.className = 'result-card';
+                    card.className = `result-card ${algorithm}-algorithm`;
                     
                     const title = type === 'camera' ? 
                         `Frame ${result.frameIndex || index} (${index === 0 ? 'Start' : index === Math.floor(results.length / 2) ? 'Middle' : 'End'})` :
                         `Conversion ${index + 1}`;
                     
-                    // Get the RGB and YUV values
                     const rgbValues = result.avgRgb || result.rgb;
                     const yuvValues = result.avgYuv || result.yuv;
                     
                     card.innerHTML = `
+                        <div class="algorithm-badge ${algorithm}">${algorithm} Algorithm</div>
                         <h3>${title}</h3>
                         
                         <div class="result-grid">
@@ -1553,18 +1921,23 @@
                         </div>
                         
                         <div class="ppg-results">
-                            <h4>PPG Signals (${platform.toUpperCase()}):</h4>
+                            <h4>PPG Signals (${platform.toUpperCase()}, ${algorithm.toUpperCase()}):</h4>
                             <div style="margin-bottom: 10px; font-size: 0.9rem; opacity: 0.8;">
-                                ${platform === 'ios' ? 'iOS: Y-channel only (value-0-0 pattern)' : 'Android: Y-U-V channels (three values)'}
+                                ${algorithm === 'original' && platform === 'ios' ? 
+                                    'Original iOS: Only fills every 3rd element (value-0-0 pattern)' : 
+                                    `${platform === 'ios' ? 'iOS: Y-channel focus' : 'Android: Y-U-V channels'}`}
                             </div>
                             <div class="ppg-grid">
                                 ${result.ppg.signals.slice(0, 15).map((signal, i) => 
-                                    `<div class="ppg-value">${signal.toFixed(1)}</div>`
+                                    `<div class="ppg-value" ${algorithm === 'original' && platform === 'ios' && (i % 3 !== 0) ? 'style="opacity: 0.5;"' : ''}>
+                                        ${signal.toFixed(1)}
+                                    </div>`
                                 ).join('')}
                             </div>
                             
                             <div class="quality-warning ${result.ppg.qualityWarning ? 'quality-bad' : 'quality-good'}">
                                 Quality: ${result.ppg.qualityWarning ? 'Warning - Poor signal quality' : 'Good signal quality'}
+                                ${algorithm === 'original' ? ' (C# always returns Good)' : ''}
                             </div>
                         </div>
                     `;
@@ -1574,14 +1947,12 @@
             });
         }
 
-        // Clear results
         function clearResults() {
             document.getElementById('results').innerHTML = '';
             hideError();
             lastRecordingResults = null;
         }
 
-        // Error handling
         function showError(message) {
             const errorDiv = document.getElementById('error');
             errorDiv.textContent = message;
@@ -1592,22 +1963,8 @@
             document.getElementById('error').style.display = 'none';
         }
 
-        // Event listeners
-        document.getElementById('r-input').addEventListener('input', updateColorPreview);
-        document.getElementById('g-input').addEventListener('input', updateColorPreview);
-        document.getElementById('b-input').addEventListener('input', updateColorPreview);
-
-        // Cleanup
-        window.addEventListener('beforeunload', async () => {
-            // Always turn off flash when leaving page for safety
-            if (mediaStream) {
-                await disableFlash();
-                mediaStream.getTracks().forEach(track => track.stop());
-            }
-        });
-
         // Export functions
-        function exportPPGData(format) {
+        function exportPPGData(format, algorithmType) {
             if (!lastRecordingResults) {
                 showError('No data to export');
                 return;
@@ -1615,59 +1972,67 @@
 
             try {
                 let content = '';
-                let filename = `ppg_recording_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}`;
+                let filename = `ppg_${algorithmType}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}`;
                 let mimeType = 'text/plain';
+
+                const dataToExport = algorithmType === 'original' ? lastRecordingResults.originalData : 
+                                   algorithmType === 'modified' ? lastRecordingResults.modifiedData : 
+                                   lastRecordingResults; // comparison
 
                 switch (format) {
                     case 'json':
-                        content = JSON.stringify(lastRecordingResults, null, 2);
+                        if (algorithmType === 'comparison') {
+                            content = JSON.stringify(lastRecordingResults, null, 2);
+                        } else {
+                            content = JSON.stringify({
+                                ...lastRecordingResults,
+                                algorithm: algorithmType,
+                                data: dataToExport
+                            }, null, 2);
+                        }
                         filename += '.json';
                         mimeType = 'application/json';
                         break;
 
                     case 'csv':
-                        const headers = ['frame_index', 'timestamp', 'rgb_r', 'rgb_g', 'rgb_b', 'yuv_y', 'yuv_u', 'yuv_v', 'quality_warning'];
-                        const maxSignals = Math.max(...lastRecordingResults.data.map(d => d.ppg.signals.length));
-                        for (let i = 0; i < Math.min(maxSignals, 30); i++) {
-                            headers.push(`ppg_signal_${i}`);
-                        }
-                        
-                        const rows = [headers.join(',')];
-                        lastRecordingResults.data.forEach(frame => {
-                            const row = [
-                                frame.frameIndex, frame.timestamp,
-                                frame.avgRgb.r, frame.avgRgb.g, frame.avgRgb.b,
-                                frame.avgYuv.y, frame.avgYuv.u, frame.avgYuv.v,
-                                frame.ppg.qualityWarning ? 1 : 0
-                            ];
-                            for (let i = 0; i < Math.min(frame.ppg.signals.length, 30); i++) {
-                                row.push(frame.ppg.signals[i].toFixed(3));
+                        if (algorithmType === 'comparison') {
+                            // Create comparison CSV with both algorithms
+                            const headers = ['frame_index', 'timestamp', 'rgb_r', 'rgb_g', 'rgb_b', 'yuv_y', 'yuv_u', 'yuv_v',
+                                           'original_quality', 'modified_quality'];
+                            
+                            for (let i = 0; i < 15; i++) {
+                                headers.push(`original_ppg_${i}`);
                             }
-                            rows.push(row.join(','));
-                        });
-                        
-                        content = rows.join('\n');
-                        filename += '.csv';
+                            for (let i = 0; i < 15; i++) {
+                                headers.push(`modified_ppg_${i}`);
+                            }
+                            
+                            const rows = [headers.join(',')];
+                            
+                            lastRecordingResults.originalData.forEach((originalFrame, index) => {
+                                const modifiedFrame = lastRecordingResults.modifiedData[index];
+                                const row = [
+                                    originalFrame.frameIndex, originalFrame.timestamp,
+                                    originalFrame.avgRgb.r, originalFrame.avgRgb.g, originalFrame.avgRgb.b,
+                                    originalFrame.avgYuv.y, originalFrame.avgYuv.u, originalFrame.avgYuv.v,
+                                    originalFrame.ppg.qualityWarning ? 1 : 0,
+                                    modifiedFrame.ppg.qualityWarning ? 1 : 0
+                                ];
+                                
+                                for (let i = 0; i < 15; i++) {
+                                    row.push(originalFrame.ppg.signals[i]?.toFixed(3) || '0');
+                                }
+                                for (let i = 0; i < 15; i++) {
+                                    row.push(modifiedFrame.ppg.signals[i]?.toFixed(3) || '0');
+                                }
+                                
+                                rows.push(row.join(','));
+                            });
+                            
+                            content = rows.join('\n');
+                            filename = `ppg_comparison_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.csv`;
+                        }
                         mimeType = 'text/csv';
-                        break;
-
-                    case 'txt':
-                        content = `PPG Recording Export\n===================\n\n`;
-                        content += `Platform: ${lastRecordingResults.platform}\n`;
-                        content += `Timestamp: ${lastRecordingResults.timestamp}\n`;
-                        content += `Frame Count: ${lastRecordingResults.frameCount}\n`;
-                        content += `Duration: ${(lastRecordingResults.duration / 1000).toFixed(1)}s\n\n`;
-                        content += `Frame Data:\n-----------\n`;
-                        
-                        lastRecordingResults.data.forEach((frame) => {
-                            content += `\nFrame ${frame.frameIndex}:\n`;
-                            content += `  RGB: ${frame.avgRgb.r}, ${frame.avgRgb.g}, ${frame.avgRgb.b}\n`;
-                            content += `  YUV: ${frame.avgYuv.y}, ${frame.avgYuv.u}, ${frame.avgYuv.v}\n`;
-                            content += `  PPG Signals: ${frame.ppg.signals.slice(0, 10).map(s => s.toFixed(1)).join(', ')}...\n`;
-                            content += `  Quality: ${frame.ppg.qualityWarning ? 'Warning' : 'Good'}\n`;
-                        });
-                        
-                        filename += '.txt';
                         break;
                 }
 
@@ -1687,7 +2052,7 @@
                     URL.revokeObjectURL(url);
                 }
                 
-                debugLog(`📄 Exported ${format.toUpperCase()}: ${filename}`);
+                debugLog(`📄 Exported ${algorithmType} ${format.toUpperCase()}: ${filename}`);
                 
             } catch (error) {
                 showError('Export failed: ' + error.message);
@@ -1702,29 +2067,31 @@
 
             try {
                 const timestamp = new Date().toLocaleString();
-                const summary = `PPG Recording (${lastRecordingResults.platform.toUpperCase()})\n` +
+                const summary = `PPG Algorithm Comparison\n` +
+                               `Platform: ${lastRecordingResults.platform.toUpperCase()}\n` +
                                `Recorded: ${timestamp}\n` +
                                `Frames: ${lastRecordingResults.frameCount}\n` +
-                               `Duration: ${(lastRecordingResults.duration / 1000).toFixed(1)}s`;
+                               `Duration: ${(lastRecordingResults.duration / 1000).toFixed(1)}s\n\n` +
+                               `Contains both Original C# and Modified JS algorithm results`;
 
                 if (navigator.share) {
                     const jsonContent = JSON.stringify(lastRecordingResults, null, 2);
                     const blob = new Blob([jsonContent], { type: 'application/json' });
-                    const file = new File([blob], `ppg_recording_${Date.now()}.json`, { type: 'application/json' });
+                    const file = new File([blob], `ppg_comparison_${Date.now()}.json`, { type: 'application/json' });
 
                     navigator.share({
-                        title: 'PPG Recording Data',
+                        title: 'PPG Algorithm Comparison Data',
                         text: summary,
                         files: [file]
                     }).then(() => {
-                        debugLog('📤 Data shared successfully');
+                        debugLog('📤 Comparison data shared');
                     }).catch((error) => {
                         if (error.name !== 'AbortError') {
-                            copyToClipboardiOS(summary + '\n\nJSON Data:\n' + JSON.stringify(lastRecordingResults, null, 2), 'ppg_data.json');
+                            copyToClipboardiOS(summary + '\n\nJSON Data:\n' + JSON.stringify(lastRecordingResults, null, 2), 'ppg_comparison.json');
                         }
                     });
                 } else {
-                    copyToClipboardiOS(summary + '\n\nJSON Data:\n' + JSON.stringify(lastRecordingResults, null, 2), 'ppg_data.json');
+                    copyToClipboardiOS(summary + '\n\nJSON Data:\n' + JSON.stringify(lastRecordingResults, null, 2), 'ppg_comparison.json');
                 }
                 
             } catch (error) {
@@ -1757,7 +2124,7 @@
                 <div style="background: white; border-radius: 15px; padding: 30px; max-width: 400px; text-align: center;">
                     <h3 style="margin-bottom: 20px; color: #007cff;">✅ Data Copied!</h3>
                     <p style="margin-bottom: 20px; line-height: 1.5;">
-                        Your PPG data has been <strong>copied to clipboard</strong>.<br><br>
+                        PPG comparison data copied to clipboard.<br><br>
                         <strong>To save as ${filename}:</strong><br>
                         1. Open <strong>Notes</strong> app<br>
                         2. Paste the data<br>
@@ -1786,6 +2153,19 @@
                 </html>
             `);
         }
+
+        // Event listeners
+        document.getElementById('r-input').addEventListener('input', updateColorPreview);
+        document.getElementById('g-input').addEventListener('input', updateColorPreview);
+        document.getElementById('b-input').addEventListener('input', updateColorPreview);
+
+        // Cleanup
+        window.addEventListener('beforeunload', async () => {
+            if (mediaStream) {
+                await disableFlash();
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+        });
 
         // Initialize
         updateColorPreview();
