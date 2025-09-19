@@ -1073,6 +1073,7 @@
                 let maxY = 0;
                 let minY = 100000;
                 const ppgValues = new Array(3 * nROIs + 3).fill(0);
+                const roiMeans = []; // Debug: track each ROI mean
 
                 for (let r = 0; r < nROIs; r++) {
                     let numPixels = 0;
@@ -1100,14 +1101,18 @@
                     }
 
                     if (numPixels > 0) {
-                        // CORRECTED: Only fill Y channel like original (realistic behavior)
-                        ppgValues[3 * r] = roiMeanY / numPixels;        // Y value only
-                        // ppgValues[3 * r + 1] and ppgValues[3 * r + 2] stay 0 (like original)
+                        const meanValue = roiMeanY / numPixels;
+                        ppgValues[3 * r] = meanValue;
+                        roiMeans.push(meanValue); // Debug
                         
-                        if (ppgValues[3 * r] > maxY) maxY = ppgValues[3 * r];
-                        if (ppgValues[3 * r] < minY) minY = ppgValues[3 * r];
+                        if (meanValue > maxY) maxY = meanValue;
+                        if (meanValue < minY) minY = meanValue;
                     }
                 }
+
+                // Debug logging
+                console.log(`[iOS Debug] Image: ${width}x${height}, ROI means: [${roiMeans.map(m => m.toFixed(1)).join(', ')}]`);
+                console.log(`[iOS Debug] Min: ${minY.toFixed(1)}, Max: ${maxY.toFixed(1)}, Range: ${(maxY - minY).toFixed(1)}`);
 
                 // ENHANCED: Multi-factor quality assessment with specific reasons
                 const maxIntensity = 200;  
@@ -1127,7 +1132,7 @@
                     qualityReason = `Too dark (${minY.toFixed(1)} < ${minIntensity})`;
                 } else if (intensityRange < 10) {
                     qualityWarning = true;
-                    qualityReason = `Insufficient variation (range: ${intensityRange.toFixed(1)})`;
+                    qualityReason = `Insufficient variation (range: ${intensityRange.toFixed(1)}, means: [${roiMeans.map(m => m.toFixed(1)).join(', ')}])`;
                 } else if (avgIntensity < 50) {
                     qualityWarning = true;
                     qualityReason = `Average too low (${avgIntensity.toFixed(1)} < 50)`;
