@@ -1073,7 +1073,10 @@
                 let maxY = 0;
                 let minY = 100000;
                 const ppgValues = new Array(3 * nROIs + 3).fill(0);
-                const roiMeans = []; // Debug: track each ROI mean
+                const roiMeans = [];
+                const roiDebug = []; // Debug ROI boundaries
+
+                console.log(`[iOS Debug] Starting extraction: ${width}x${height}, wStep=${wStep}, hStep=${hStep}`);
 
                 for (let r = 0; r < nROIs; r++) {
                     let numPixels = 0;
@@ -1090,6 +1093,9 @@
 
                     const roiHeight = (((r + 2) * wStep / width) * hStep / height) > 1 ? height - yOffset : hStep;
 
+                    // Debug ROI boundaries
+                    roiDebug.push(`ROI${r}: x=${xOffset}-${xOffset+roiWidth}, y=${yOffset}-${yOffset+roiHeight} (${roiWidth}x${roiHeight})`);
+
                     for (let i = xOffset; i < xOffset + roiWidth; i++) {
                         for (let j = yOffset; j < yOffset + roiHeight; j++) {
                             if (i + j * width < y.length) {
@@ -1103,36 +1109,43 @@
                     if (numPixels > 0) {
                         const meanValue = roiMeanY / numPixels;
                         ppgValues[3 * r] = meanValue;
-                        roiMeans.push(meanValue); // Debug
+                        roiMeans.push(meanValue);
                         
                         if (meanValue > maxY) maxY = meanValue;
                         if (meanValue < minY) minY = meanValue;
                     }
                 }
 
-                // Debug logging
-                console.log(`[iOS Debug] Image: ${width}x${height}, ROI means: [${roiMeans.map(m => m.toFixed(1)).join(', ')}]`);
+                // Detailed debug logging
+                console.log(`[iOS Debug] ROI boundaries:`);
+                roiDebug.forEach(debug => console.log(`  ${debug}`));
+                console.log(`[iOS Debug] ROI means: [${roiMeans.map(m => m.toFixed(1)).join(', ')}]`);
                 console.log(`[iOS Debug] Min: ${minY.toFixed(1)}, Max: ${maxY.toFixed(1)}, Range: ${(maxY - minY).toFixed(1)}`);
 
-                // ENHANCED: Multi-factor quality assessment with specific reasons
-                const maxIntensity = 200;  
-                const minIntensity = 30;   
+                // Also sample some raw pixel values for comparison
+                const samplePixels = [];
+                for (let i = 0; i < Math.min(y.length, 20); i += Math.floor(y.length / 20)) {
+                    samplePixels.push(y[i] & 0xff);
+                }
+                console.log(`[iOS Debug] Raw pixel samples: [${samplePixels.join(', ')}]`);
+
+                const intensityRange = maxY - minY;
+                const avgIntensity = (maxY + minY) / 2;
                 let qualityWarning = false;
                 let qualityReason = '';
                 
-                const intensityRange = maxY - minY;
-                const avgIntensity = (maxY + minY) / 2;
+                // Adjusted threshold - if we're getting 1.0 range consistently, maybe the threshold is too high
+                const minVariation = 5; // Lowered from 10 to see if this helps
                 
-                // Check each quality factor and record the reason
-                if (maxY > maxIntensity) {
+                if (maxY > 200) {
                     qualityWarning = true;
-                    qualityReason = `Too bright (${maxY.toFixed(1)} > ${maxIntensity})`;
-                } else if (minY < minIntensity) {
+                    qualityReason = `Too bright (${maxY.toFixed(1)} > 200)`;
+                } else if (minY < 30) {
                     qualityWarning = true;
-                    qualityReason = `Too dark (${minY.toFixed(1)} < ${minIntensity})`;
-                } else if (intensityRange < 10) {
+                    qualityReason = `Too dark (${minY.toFixed(1)} < 30)`;
+                } else if (intensityRange < minVariation) {
                     qualityWarning = true;
-                    qualityReason = `Insufficient variation (range: ${intensityRange.toFixed(1)}, means: [${roiMeans.map(m => m.toFixed(1)).join(', ')}])`;
+                    qualityReason = `Insufficient variation (range: ${intensityRange.toFixed(1)} < ${minVariation}) - very uniform lighting`;
                 } else if (avgIntensity < 50) {
                     qualityWarning = true;
                     qualityReason = `Average too low (${avgIntensity.toFixed(1)} < 50)`;
