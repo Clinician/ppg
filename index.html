@@ -685,7 +685,7 @@
                                     RGB: ---, ---, ---
                                 </div>
                                 <div id="quality-samples" style="font-size: 0.9rem;">
-                                    Good samples: 0/5
+                                    Good samples: 0/3
                                 </div>
                             </div>
                             <div id="recording-status" class="recording-status" style="display: none;">
@@ -722,6 +722,10 @@
                         
                         <button id="toggle-flash-btn" class="btn btn-secondary" onclick="toggleFlash()" disabled style="display: none;">
                             💡 Turn On Flash
+                        </button>
+                        
+                        <button id="toggle-debug-btn" class="btn btn-secondary" onclick="toggleDebugInfo()" style="display: none;">
+                            🔧 Hide Debug
                         </button>
                     </div>
 
@@ -796,13 +800,14 @@
         let lastRecordingResults = null;
         let algorithmMode = 'comparison'; // 'original', 'modified', 'comparison'
         
-        // Constants
+        // Constants - IMPROVED VALUES
         const RECORDING_DURATION = 10000;
         const FRAME_RATE = 10;
-        const MAX_CANVAS_SIZE = 320;
-        const QUALITY_CHECK_SAMPLES = 5;
+        const MAX_CANVAS_SIZE = 1280; // Increased for better quality
+        const QUALITY_CHECK_SAMPLES = 3; // Reduced to get faster start
+        const ROI_CENTER_FRACTION = 0.6; // Use central 60% of image for ROI
 
-        // Debug logging functions
+        // Debug logging functions - ENHANCED WITH TOGGLE
         function debugLog(message) {
             console.log('[PPG]', message);
             const debugDiv = document.getElementById('debug-log');
@@ -815,6 +820,11 @@
 
         function showDebugInfo() {
             document.getElementById('debug-info').style.display = 'block';
+            const toggleBtn = document.getElementById('toggle-debug-btn');
+            if (toggleBtn) {
+                toggleBtn.style.display = 'inline-block';
+                toggleBtn.textContent = '🔧 Hide Debug';
+            }
         }
 
         function hideDebugInfo() {
@@ -823,6 +833,23 @@
                 debugInfo.style.display = 'none';
                 const debugLog = document.getElementById('debug-log');
                 if (debugLog) debugLog.innerHTML = '';
+            }
+            const toggleBtn = document.getElementById('toggle-debug-btn');
+            if (toggleBtn) {
+                toggleBtn.style.display = 'none';
+            }
+        }
+
+        function toggleDebugInfo() {
+            const debugInfo = document.getElementById('debug-info');
+            const toggleBtn = document.getElementById('toggle-debug-btn');
+            
+            if (debugInfo.style.display === 'none') {
+                debugInfo.style.display = 'block';
+                toggleBtn.textContent = '🔧 Hide Debug';
+            } else {
+                debugInfo.style.display = 'none';
+                toggleBtn.textContent = '🔧 Show Debug';
             }
         }
 
@@ -1273,7 +1300,7 @@
             document.getElementById(`${tabName}-tab`).classList.add('active');
         }
 
-        // Camera functions (same as before but with algorithm comparison)
+        // Camera functions (enhanced with better resolution and ROI processing)
         async function initCamera() {
             try {
                 hideError();
@@ -1320,7 +1347,7 @@
                 video.addEventListener('loadedmetadata', () => {
                     originalConverter.initAlgo(video.videoWidth || 640, video.videoHeight || 480, 1);
                     modifiedConverter.initAlgo(video.videoWidth || 640, video.videoHeight || 480, 1);
-                    debugLog(`📐 PPG initialized: ${video.videoWidth}x${video.videoHeight}`);
+                    debugLog(`🔧 PPG initialized: ${video.videoWidth}x${video.videoHeight}`);
                 });
 
                 debugLog('✅ Camera ready');
@@ -1374,7 +1401,7 @@
             }
         }
 
-        // Quality check and recording functions
+        // ENHANCED: Quality check and recording functions with ROI processing
         function startQualityCheck() {
             if (!mediaStream) {
                 showError('Please enable camera first');
@@ -1418,15 +1445,19 @@
             }
         }
 
+        // ENHANCED: Run quality check with better resolution and ROI processing
         function runQualityCheck() {
             const platform = document.getElementById('camera-platform-select').value;
             const video = document.getElementById('camera-preview');
             const canvas = document.getElementById('capture-canvas');
             const ctx = canvas.getContext('2d');
             
+            // Use full camera resolution for better quality
             const originalWidth = video.videoWidth || 640;
             const originalHeight = video.videoHeight || 480;
-            const scale = Math.min(MAX_CANVAS_SIZE / originalWidth, MAX_CANVAS_SIZE / originalHeight);
+            
+            // Only scale down if absolutely necessary
+            const scale = Math.min(1.0, Math.min(MAX_CANVAS_SIZE / originalWidth, MAX_CANVAS_SIZE / originalHeight));
             
             canvas.width = Math.floor(originalWidth * scale);
             canvas.height = Math.floor(originalHeight * scale);
@@ -1434,7 +1465,7 @@
             let goodSamples = 0;
             let totalSamples = 0;
             
-            debugLog(`🔍 Quality check (${platform}, ${algorithmMode})`);
+            debugLog(`🔍 Quality check (${platform}, ${algorithmMode}) - Resolution: ${canvas.width}x${canvas.height}`);
             
             qualityCheckInterval = setInterval(() => {
                 if (!isCheckingQuality) return;
@@ -1444,21 +1475,43 @@
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const avgRGB = extractAverageRGBFromImageData(imageData);
+                    
+                    // Extract central ROI for better signal quality
+                    const centralROI = extractCentralROI(imageData, canvas.width, canvas.height);
+                    const avgRGB = centralROI.avgRGB;
                     const yuv = rgbToYuv(avgRGB.r, avgRGB.g, avgRGB.b);
                     
-                    // Test quality using the appropriate algorithm
-                    const imageSize = 100 * 100;
-                    const yArray = new Uint8Array(imageSize).fill(yuv.y);
-                    const uArray = new Uint8Array(imageSize / 2).fill(yuv.u);
-                    const vArray = new Uint8Array(imageSize / 2).fill(yuv.v);
+                    // Test quality using the actual canvas dimensions
+                    const yArray = new Uint8Array(centralROI.pixels.length / 4);
+                    const uArray = new Uint8Array(centralROI.pixels.length / 8);
+                    const vArray = new Uint8Array(centralROI.pixels.length / 8);
+                    
+                    // Fill arrays with actual pixel data from central ROI
+                    for (let i = 0; i < centralROI.pixels.length; i += 4) {
+                        const pixelIndex = i / 4;
+                        const r = centralROI.pixels[i];
+                        const g = centralROI.pixels[i + 1];
+                        const b = centralROI.pixels[i + 2];
+                        const yuvPixel = rgbToYuv(r, g, b);
+                        
+                        if (pixelIndex < yArray.length) {
+                            yArray[pixelIndex] = yuvPixel.y;
+                        }
+                        if (pixelIndex < uArray.length * 2) {
+                            const uvIndex = Math.floor(pixelIndex / 2);
+                            if (uvIndex < uArray.length && pixelIndex % 2 === 0) {
+                                uArray[uvIndex] = yuvPixel.u;
+                                vArray[uvIndex] = yuvPixel.v;
+                            }
+                        }
+                    }
                     
                     let ppgResult;
                     if (algorithmMode === 'original') {
-                        originalConverter.initAlgo(100, 100, 1);
+                        originalConverter.initAlgo(centralROI.width, centralROI.height, 1);
                         ppgResult = originalConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
                     } else {
-                        modifiedConverter.initAlgo(100, 100, 1);
+                        modifiedConverter.initAlgo(centralROI.width, centralROI.height, 1);
                         ppgResult = modifiedConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
                     }
                     
@@ -1468,16 +1521,37 @@
                     const qualityDetails = document.getElementById('quality-details');
                     const qualitySamples = document.getElementById('quality-samples');
                     
-                    qualityDetails.textContent = `RGB: ${avgRGB.r}, ${avgRGB.g}, ${avgRGB.b}`;
+                    qualityDetails.textContent = `RGB: ${avgRGB.r}, ${avgRGB.g}, ${avgRGB.b} | Resolution: ${canvas.width}x${canvas.height} | ROI: ${centralROI.width}x${centralROI.height}`;
                     
-                    if (!ppgResult.qualityWarning) {
+                    // More lenient quality check - focus on basic signal presence
+                    const signalVariation = Math.abs(Math.max(...ppgResult.signals.slice(0, 9)) - Math.min(...ppgResult.signals.slice(0, 9)));
+                    const avgSignal = ppgResult.signals.slice(0, 9).reduce((a, b) => a + b, 0) / 9;
+                    
+                    let qualityOK = false;
+                    let qualityMsg = '';
+                    
+                    if (platform === 'ios') {
+                        // For iOS, check if we have reasonable Y channel values
+                        qualityOK = avgSignal > 20 && avgSignal < 250 && signalVariation > 0.1;
+                        qualityMsg = `Y avg: ${avgSignal.toFixed(1)}, variation: ${signalVariation.toFixed(1)}`;
+                    } else {
+                        // For Android, check YUV channels
+                        qualityOK = avgSignal > 10 && avgSignal < 200 && signalVariation > 0.5;
+                        qualityMsg = `YUV avg: ${avgSignal.toFixed(1)}, variation: ${signalVariation.toFixed(1)}`;
+                    }
+                    
+                    debugLog(`📊 Sample ${totalSamples}: ${qualityMsg}, Quality: ${qualityOK ? 'GOOD' : 'POOR'}`);
+                    debugLog(`📊 PPG signals [0-5]: ${ppgResult.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}`);
+                    
+                    if (qualityOK) {
                         goodSamples++;
                         qualityStatus.innerHTML = `✅ Good signal detected!`;
                         qualityStatus.style.color = '#4CAF50';
-                        debugLog(`✅ Good sample ${goodSamples}/${QUALITY_CHECK_SAMPLES}`);
+                        debugLog(`✅ Good sample ${goodSamples}/${QUALITY_CHECK_SAMPLES}: ${qualityMsg}`);
                     } else {
-                        qualityStatus.innerHTML = `🔍 Checking signal quality...`;
+                        qualityStatus.innerHTML = `🔍 Improving signal... ${qualityMsg}`;
                         qualityStatus.style.color = '#ffd700';
+                        debugLog(`⚠️ Poor sample: ${qualityMsg}`);
                     }
                     
                     qualitySamples.textContent = `Good samples: ${goodSamples}/${QUALITY_CHECK_SAMPLES}`;
@@ -1494,7 +1568,7 @@
                         startRecording();
                     }
                     
-                    if (totalSamples > 300) {
+                    if (totalSamples > 100) { // Increased timeout but still reasonable
                         debugLog('⏰ Quality check timeout - starting anyway');
                         clearInterval(qualityCheckInterval);
                         qualityCheckInterval = null;
@@ -1513,6 +1587,52 @@
             }, 1000 / FRAME_RATE);
         }
 
+        // NEW: Extract central ROI for better signal processing
+        function extractCentralROI(imageData, fullWidth, fullHeight) {
+            const data = imageData.data;
+            
+            // Calculate central ROI bounds (use central 60% of image)
+            const roiWidth = Math.floor(fullWidth * ROI_CENTER_FRACTION);
+            const roiHeight = Math.floor(fullHeight * ROI_CENTER_FRACTION);
+            const startX = Math.floor((fullWidth - roiWidth) / 2);
+            const startY = Math.floor((fullHeight - roiHeight) / 2);
+            
+            // Extract pixels from central ROI
+            const roiPixels = [];
+            let rSum = 0, gSum = 0, bSum = 0;
+            let pixelCount = 0;
+            
+            for (let y = startY; y < startY + roiHeight; y++) {
+                for (let x = startX; x < startX + roiWidth; x++) {
+                    const index = (y * fullWidth + x) * 4;
+                    if (index < data.length - 3) {
+                        const r = data[index];
+                        const g = data[index + 1];
+                        const b = data[index + 2];
+                        const a = data[index + 3];
+                        
+                        roiPixels.push(r, g, b, a);
+                        rSum += r;
+                        gSum += g;
+                        bSum += b;
+                        pixelCount++;
+                    }
+                }
+            }
+            
+            return {
+                pixels: new Uint8Array(roiPixels),
+                width: roiWidth,
+                height: roiHeight,
+                avgRGB: pixelCount > 0 ? {
+                    r: Math.round(rSum / pixelCount),
+                    g: Math.round(gSum / pixelCount),
+                    b: Math.round(bSum / pixelCount)
+                } : { r: 0, g: 0, b: 0 }
+            };
+        }
+
+        // ENHANCED: Start recording with ROI processing
         function startRecording() {
             try {
                 debugLog(`🎬 RECORDING (${algorithmMode} mode)`);
@@ -1522,6 +1642,16 @@
                 const video = document.getElementById('camera-preview');
                 const canvas = document.getElementById('capture-canvas');
                 const ctx = canvas.getContext('2d');
+                
+                // Use the same resolution settings as quality check
+                const originalWidth = video.videoWidth || 640;
+                const originalHeight = video.videoHeight || 480;
+                const scale = Math.min(1.0, Math.min(MAX_CANVAS_SIZE / originalWidth, MAX_CANVAS_SIZE / originalHeight));
+                
+                canvas.width = Math.floor(originalWidth * scale);
+                canvas.height = Math.floor(originalHeight * scale);
+                
+                debugLog(`📹 Recording at ${canvas.width}x${canvas.height} (scale: ${scale.toFixed(2)})`);
                 
                 let frameCount = 0;
                 
@@ -1538,7 +1668,8 @@
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const avgRGB = extractAverageRGBFromImageData(imageData);
+                    const centralROI = extractCentralROI(imageData, canvas.width, canvas.height);
+                    const avgRGB = centralROI.avgRGB;
                     const yuv = rgbToYuv(avgRGB.r, avgRGB.g, avgRGB.b);
                     
                     recordingFrames.push({
@@ -1546,8 +1677,11 @@
                         frameIndex: frameCount,
                         avgRgb: avgRGB,
                         yuv: yuv,
-                        width: canvas.width,
-                        height: canvas.height
+                        width: centralROI.width,
+                        height: centralROI.height,
+                        centralROI: centralROI, // Store the ROI data for processing
+                        fullWidth: canvas.width,
+                        fullHeight: canvas.height
                     });
                     
                     frameCount++;
@@ -1620,7 +1754,7 @@
                 qualityStatus.style.color = '#ffd700';
             }
             if (qualityDetails) qualityDetails.textContent = 'RGB: ---, ---, ---';
-            if (qualitySamples) qualitySamples.textContent = 'Good samples: 0/5';
+            if (qualitySamples) qualitySamples.textContent = 'Good samples: 0/3';
         }
 
         async function disableCamera() {
@@ -1680,20 +1814,64 @@
             };
         }
 
+        // ENHANCED: Process frames with detailed debugging and ROI support
         function processFrames() {
             try {
                 const platform = document.getElementById('camera-platform-select').value;
                 const originalResults = [];
                 const modifiedResults = [];
                 
-                recordingFrames.forEach((frame) => {
-                    const imageSize = 100 * 100;
-                    const yArray = new Uint8Array(imageSize).fill(frame.yuv.y);
-                    const uArray = new Uint8Array(imageSize / 2).fill(frame.yuv.u);
-                    const vArray = new Uint8Array(imageSize / 2).fill(frame.yuv.v);
+                debugLog(`🔄 Processing ${recordingFrames.length} frames with actual ROI data...`);
+                
+                recordingFrames.forEach((frame, index) => {
+                    // Use actual ROI data if available, otherwise fallback to simple approach
+                    let yArray, uArray, vArray, processingWidth, processingHeight;
+                    
+                    if (frame.centralROI) {
+                        // Use the actual central ROI pixel data
+                        processingWidth = frame.centralROI.width;
+                        processingHeight = frame.centralROI.height;
+                        
+                        const roiPixels = frame.centralROI.pixels;
+                        yArray = new Uint8Array(roiPixels.length / 4);
+                        uArray = new Uint8Array(roiPixels.length / 8);
+                        vArray = new Uint8Array(roiPixels.length / 8);
+                        
+                        // Convert ROI pixels to YUV arrays
+                        for (let i = 0; i < roiPixels.length; i += 4) {
+                            const pixelIndex = i / 4;
+                            const r = roiPixels[i];
+                            const g = roiPixels[i + 1];
+                            const b = roiPixels[i + 2];
+                            const yuvPixel = rgbToYuv(r, g, b);
+                            
+                            if (pixelIndex < yArray.length) {
+                                yArray[pixelIndex] = yuvPixel.y;
+                            }
+                            if (pixelIndex < uArray.length * 2) {
+                                const uvIndex = Math.floor(pixelIndex / 2);
+                                if (uvIndex < uArray.length && pixelIndex % 2 === 0) {
+                                    uArray[uvIndex] = yuvPixel.u;
+                                    vArray[uvIndex] = yuvPixel.v;
+                                }
+                            }
+                        }
+                        
+                        debugLog(`📊 Frame ${index}: Using ROI ${processingWidth}x${processingHeight} (${yArray.length} Y pixels)`);
+                    } else {
+                        // Fallback for frames without ROI data
+                        processingWidth = frame.width || 100;
+                        processingHeight = frame.height || 100;
+                        const imageSize = processingWidth * processingHeight;
+                        yArray = new Uint8Array(imageSize).fill(frame.yuv.y);
+                        uArray = new Uint8Array(imageSize / 2).fill(frame.yuv.u);
+                        vArray = new Uint8Array(imageSize / 2).fill(frame.yuv.v);
+                        
+                        debugLog(`📊 Frame ${index}: Using fallback ${processingWidth}x${processingHeight}`);
+                    }
                     
                     // Process with original algorithm
-                    originalConverter.initAlgo(100, 100, 1);
+                    originalConverter.initAlgo(processingWidth, processingHeight, 1);
                     const originalPpg = originalConverter.convertFrame2PPG(
                         frame.timestamp, yArray, uArray, vArray, platform
                     );
@@ -1703,11 +1881,12 @@
                         timestamp: frame.timestamp,
                         avgRgb: frame.avgRgb,
                         avgYuv: frame.yuv,
+                        processingDimensions: { width: processingWidth, height: processingHeight },
                         ppg: originalPpg
                     });
                     
                     // Process with modified algorithm
-                    modifiedConverter.initAlgo(100, 100, 1);
+                    modifiedConverter.initAlgo(processingWidth, processingHeight, 1);
                     const modifiedPpg = modifiedConverter.convertFrame2PPG(
                         frame.timestamp, yArray, uArray, vArray, platform
                     );
@@ -1717,6 +1896,7 @@
                         timestamp: frame.timestamp,
                         avgRgb: frame.avgRgb,
                         avgYuv: frame.yuv,
+                        processingDimensions: { width: processingWidth, height: processingHeight },
                         ppg: modifiedPpg
                     });
                 });
@@ -1729,28 +1909,47 @@
                     frameCount: originalResults.length,
                     duration: originalResults.length > 1 ? (originalResults[originalResults.length - 1].timestamp - originalResults[0].timestamp) : 0,
                     originalData: originalResults,
-                    modifiedData: modifiedResults
+                    modifiedData: modifiedResults,
+                    cameraResolution: recordingFrames.length > 0 ? `${recordingFrames[0].fullWidth}x${recordingFrames[0].fullHeight}` : 'unknown',
+                    roiResolution: originalResults.length > 0 ? `${originalResults[0].processingDimensions.width}x${originalResults[0].processingDimensions.height}` : 'unknown'
                 };
                 
-                // Debug: Show actual differences
+                // Debug: Show actual differences and processing info
                 if (originalResults.length > 0 && modifiedResults.length > 0) {
                     const orig = originalResults[0];
                     const mod = modifiedResults[0];
+                    debugLog(`📊 PROCESSING: Camera ${lastRecordingResults.cameraResolution} → ROI ${lastRecordingResults.roiResolution}`);
                     debugLog(`📊 ORIGINAL PPG [0-5]: ${orig.ppg.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}`);
                     debugLog(`📊 MODIFIED PPG [0-5]: ${mod.ppg.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}`);
                     debugLog(`🔍 ORIGINAL: ${orig.ppg.qualityWarning ? 'Warning' : 'Good'} - ${orig.ppg.qualityReason}`);
                     debugLog(`🔍 MODIFIED: ${mod.ppg.qualityWarning ? 'Warning' : 'Good'} - ${mod.ppg.qualityReason}`);
+                    
+                    // Calculate and show signal statistics
+                    const origStats = calculateSignalStats(orig.ppg.signals.slice(0, 9));
+                    const modStats = calculateSignalStats(mod.ppg.signals.slice(0, 9));
+                    debugLog(`📈 ORIGINAL Stats: avg=${origStats.avg.toFixed(1)}, std=${origStats.std.toFixed(2)}, range=${origStats.range.toFixed(1)}`);
+                    debugLog(`📈 MODIFIED Stats: avg=${modStats.avg.toFixed(1)}, std=${modStats.std.toFixed(2)}, range=${modStats.range.toFixed(1)}`);
                 }
                 
                 debugLog(`✅ Processed ${originalResults.length} frames with both algorithms`);
                 displayResults(originalResults, modifiedResults, platform, 'camera');
                 
-                setTimeout(hideDebugInfo, 3000);
+                // Keep debug info visible after results - don't auto-hide
+                debugLog(`🔧 Debug info will remain visible for analysis`);
                 
             } catch (error) {
                 debugLog(`❌ Processing error: ${error.message}`);
                 showError('Processing failed: ' + error.message);
             }
+        }
+
+        function calculateSignalStats(signals) {
+            const avg = signals.reduce((a, b) => a + b, 0) / signals.length;
+            const variance = signals.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / signals.length;
+            const std = Math.sqrt(variance);
+            const range = Math.max(...signals) - Math.min(...signals);
+            
+            return { avg, std, range };
         }
 
         // Manual input functions
@@ -1923,7 +2122,7 @@
             const resultsContainer = document.getElementById('results');
             resultsContainer.innerHTML = '';
             
-            // Export card with both algorithm options
+            // Export card with both algorithm options and processing info
             if (originalResults.length > 0) {
                 const exportCard = document.createElement('div');
                 exportCard.className = 'result-card';
@@ -1932,6 +2131,9 @@
                     <p><strong>Type:</strong> ${type === 'camera' ? 'Camera Recording' : 'Manual Input'}</p>
                     <p><strong>Platform:</strong> ${platform.toUpperCase()}</p>
                     <p><strong>Frames:</strong> ${originalResults.length}</p>
+                    ${lastRecordingResults.cameraResolution ? `<p><strong>Camera Resolution:</strong> ${lastRecordingResults.cameraResolution}</p>` : ''}
+                    ${lastRecordingResults.roiResolution ? `<p><strong>ROI Resolution:</strong> ${lastRecordingResults.roiResolution}</p>` : ''}
+                    ${type === 'camera' ? `<p><strong>Duration:</strong> ${(lastRecordingResults.duration / 1000).toFixed(1)}s</p>` : ''}
                     <div class="controls" style="margin-top: 15px;">
                         <button class="btn btn-primary" onclick="exportPPGData('json', 'original')">📄 Original JSON</button>
                         <button class="btn btn-primary" onclick="exportPPGData('json', 'modified')">📄 Modified JSON</button>
