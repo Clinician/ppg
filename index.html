@@ -539,7 +539,8 @@
                         <h3>📱 Camera PPG Recording Instructions</h3>
                         <ul>
                             <li><strong>Click "Start Quality Check"</strong> to begin</li>
-                            <li><strong>Place your fingertip</strong> gently over the rear camera and flash</li>
+                            <li><strong>Place your fingertip</strong> gently over the rear camera</li>
+                            <li><strong>Optional:</strong> Turn on flash using the flash button for better signal</li>
                             <li><strong>Wait for quality confirmation</strong> - app checks signal in real-time</li>
                             <li><strong>Recording starts automatically</strong> when signal is good</li>
                             <li><strong>Hold steady</strong> for 10 seconds</li>
@@ -555,7 +556,7 @@
                         <div id="camera-overlay" class="camera-overlay" style="display: none;">
                             <div id="quality-check-display" class="quality-check">
                                 <div style="font-size: 1.3rem; margin-bottom: 15px;">
-                                    📱 Place fingertip over camera & flash
+                                    📱 Place fingertip over rear camera
                                 </div>
                                 <div id="quality-status" style="font-size: 1.1rem; margin-bottom: 10px;">
                                     🔍 Checking signal quality...
@@ -600,7 +601,7 @@
                         </div>
                         
                         <button id="toggle-flash-btn" class="btn btn-secondary" onclick="toggleFlash()" disabled style="display: none;">
-                            🔦 Turn Off Flash
+                            💡 Turn On Flash
                         </button>
                     </div>
 
@@ -889,28 +890,51 @@
                 hideError();
                 debugLog('🎥 Initializing camera...');
                 
-                const constraints = {
+                // Try different camera selection approaches for iOS compatibility
+                let constraints = {
                     video: {
-                        facingMode: { exact: "environment" },
-                        width: { ideal: 1920, max: 1920 },
-                        height: { ideal: 1080, max: 1080 }
+                        facingMode: "environment", // Remove "exact" to be more flexible
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
                     }
                 };
 
-                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                try {
+                    // First try with basic environment facing mode
+                    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (error) {
+                    debugLog('⚠️ First camera attempt failed, trying fallback...');
+                    // Fallback: try with less specific constraints
+                    constraints = {
+                        video: {
+                            facingMode: "environment"
+                        }
+                    };
+                    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                }
+
                 videoTrack = mediaStream.getVideoTracks()[0];
                 
                 const video = document.getElementById('camera-preview');
                 video.srcObject = mediaStream;
 
+                // Log camera info for debugging
+                const settings = videoTrack.getSettings();
+                debugLog(`📹 Camera selected: ${settings.width}x${settings.height}`);
+                if (settings.deviceId) {
+                    debugLog(`📹 Device ID: ${settings.deviceId.substring(0, 8)}...`);
+                }
+
+                // Check if flash/torch is available but DON'T turn it on automatically
                 if (videoTrack?.getCapabilities?.()?.torch) {
                     document.getElementById('toggle-flash-btn').style.display = 'inline-block';
                     document.getElementById('toggle-flash-btn').disabled = false;
-                    await enableFlash();
-                    debugLog('🔦 Flash enabled');
+                    document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash';
+                    flashEnabled = false; // Start with flash OFF
+                    debugLog('🔦 Flash available but OFF by default');
                 } else {
-                    debugLog('⚠️ Flash not available');
-                    showError('Flash not available - recording will work without it');
+                    document.getElementById('toggle-flash-btn').style.display = 'none';
+                    debugLog('⚠️ Flash not available on this device');
                 }
 
                 document.getElementById('start-camera-btn').style.display = 'none';
@@ -923,7 +947,7 @@
                     debugLog(`📐 PPG initialized: ${video.videoWidth}x${video.videoHeight}`);
                 });
 
-                debugLog('✅ Camera ready');
+                debugLog('✅ Camera ready (flash OFF)');
 
             } catch (error) {
                 debugLog(`❌ Camera failed: ${error.message}`);
@@ -960,11 +984,17 @@
 
         async function toggleFlash() {
             if (flashEnabled) {
-                await disableFlash();
-                document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash';
+                const success = await disableFlash();
+                if (success) {
+                    document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash';
+                    debugLog('🔦 Flash turned OFF');
+                }
             } else {
-                await enableFlash();
-                document.getElementById('toggle-flash-btn').textContent = '🔦 Turn Off Flash';
+                const success = await enableFlash();
+                if (success) {
+                    document.getElementById('toggle-flash-btn').textContent = '🔦 Turn Off Flash';
+                    debugLog('🔦 Flash turned ON');
+                }
             }
         }
 
@@ -1190,7 +1220,9 @@
                 recordingInterval = null;
             }
             
-            disableFlash();
+            // DON'T automatically turn off flash - let user control it
+            // disableFlash(); // REMOVED - flash stays in user's preferred state
+            
             resetUI();
             
             if (recordingFrames.length > 0) {
@@ -1271,20 +1303,28 @@
         // Disable camera
         async function disableCamera() {
             try {
-                await disableFlash();
+                // Turn off flash first if it's on
+                if (flashEnabled) {
+                    await disableFlash();
+                }
+                
                 if (mediaStream) {
                     mediaStream.getTracks().forEach(track => track.stop());
                     mediaStream = null;
                     videoTrack = null;
                 }
                 
+                // Reset UI elements
                 document.getElementById('start-camera-btn').style.display = 'inline-block';
                 document.getElementById('disable-camera-btn').style.display = 'none';
                 document.getElementById('record-btn').disabled = true;
                 document.getElementById('toggle-flash-btn').style.display = 'none';
+                document.getElementById('toggle-flash-btn').textContent = '💡 Turn On Flash'; // Reset button text
                 document.getElementById('camera-preview').srcObject = null;
                 
-                debugLog('📹 Camera disabled');
+                flashEnabled = false; // Reset flash state
+                
+                debugLog('📹 Camera disabled and flash turned off');
                 
             } catch (error) {
                 showError('Error disabling camera: ' + error.message);
@@ -1559,20 +1599,99 @@
 
         // Cleanup
         window.addEventListener('beforeunload', async () => {
+            // Always turn off flash when leaving page for safety
             if (mediaStream) {
                 await disableFlash();
                 mediaStream.getTracks().forEach(track => track.stop());
             }
         });
 
-        // Export functions (placeholder - you can add the full export logic here)
+        // Export functions
         function exportPPGData(format) {
             if (!lastRecordingResults) {
                 showError('No data to export');
                 return;
             }
-            // Add full export logic here...
-            alert(`Export ${format.toUpperCase()} functionality - implement as before`);
+
+            try {
+                let content = '';
+                let filename = `ppg_recording_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}`;
+                let mimeType = 'text/plain';
+
+                switch (format) {
+                    case 'json':
+                        content = JSON.stringify(lastRecordingResults, null, 2);
+                        filename += '.json';
+                        mimeType = 'application/json';
+                        break;
+
+                    case 'csv':
+                        const headers = ['frame_index', 'timestamp', 'rgb_r', 'rgb_g', 'rgb_b', 'yuv_y', 'yuv_u', 'yuv_v', 'quality_warning'];
+                        const maxSignals = Math.max(...lastRecordingResults.data.map(d => d.ppg.signals.length));
+                        for (let i = 0; i < Math.min(maxSignals, 30); i++) {
+                            headers.push(`ppg_signal_${i}`);
+                        }
+                        
+                        const rows = [headers.join(',')];
+                        lastRecordingResults.data.forEach(frame => {
+                            const row = [
+                                frame.frameIndex, frame.timestamp,
+                                frame.avgRgb.r, frame.avgRgb.g, frame.avgRgb.b,
+                                frame.avgYuv.y, frame.avgYuv.u, frame.avgYuv.v,
+                                frame.ppg.qualityWarning ? 1 : 0
+                            ];
+                            for (let i = 0; i < Math.min(frame.ppg.signals.length, 30); i++) {
+                                row.push(frame.ppg.signals[i].toFixed(3));
+                            }
+                            rows.push(row.join(','));
+                        });
+                        
+                        content = rows.join('\n');
+                        filename += '.csv';
+                        mimeType = 'text/csv';
+                        break;
+
+                    case 'txt':
+                        content = `PPG Recording Export\n===================\n\n`;
+                        content += `Platform: ${lastRecordingResults.platform}\n`;
+                        content += `Timestamp: ${lastRecordingResults.timestamp}\n`;
+                        content += `Frame Count: ${lastRecordingResults.frameCount}\n`;
+                        content += `Duration: ${(lastRecordingResults.duration / 1000).toFixed(1)}s\n\n`;
+                        content += `Frame Data:\n-----------\n`;
+                        
+                        lastRecordingResults.data.forEach((frame) => {
+                            content += `\nFrame ${frame.frameIndex}:\n`;
+                            content += `  RGB: ${frame.avgRgb.r}, ${frame.avgRgb.g}, ${frame.avgRgb.b}\n`;
+                            content += `  YUV: ${frame.avgYuv.y}, ${frame.avgYuv.u}, ${frame.avgYuv.v}\n`;
+                            content += `  PPG Signals: ${frame.ppg.signals.slice(0, 10).map(s => s.toFixed(1)).join(', ')}...\n`;
+                            content += `  Quality: ${frame.ppg.qualityWarning ? 'Warning' : 'Good'}\n`;
+                        });
+                        
+                        filename += '.txt';
+                        break;
+                }
+
+                // iOS Safari compatibility
+                if (isIOSSafari()) {
+                    copyToClipboardiOS(content, filename);
+                } else {
+                    const blob = new Blob([content], { type: mimeType });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+                
+                debugLog(`📄 Exported ${format.toUpperCase()}: ${filename}`);
+                
+            } catch (error) {
+                showError('Export failed: ' + error.message);
+            }
         }
 
         function sharePPGData() {
@@ -1580,8 +1699,92 @@
                 showError('No data to share');
                 return;
             }
-            // Add full share logic here...
-            alert('Share functionality - implement as before');
+
+            try {
+                const timestamp = new Date().toLocaleString();
+                const summary = `PPG Recording (${lastRecordingResults.platform.toUpperCase()})\n` +
+                               `Recorded: ${timestamp}\n` +
+                               `Frames: ${lastRecordingResults.frameCount}\n` +
+                               `Duration: ${(lastRecordingResults.duration / 1000).toFixed(1)}s`;
+
+                if (navigator.share) {
+                    const jsonContent = JSON.stringify(lastRecordingResults, null, 2);
+                    const blob = new Blob([jsonContent], { type: 'application/json' });
+                    const file = new File([blob], `ppg_recording_${Date.now()}.json`, { type: 'application/json' });
+
+                    navigator.share({
+                        title: 'PPG Recording Data',
+                        text: summary,
+                        files: [file]
+                    }).then(() => {
+                        debugLog('📤 Data shared successfully');
+                    }).catch((error) => {
+                        if (error.name !== 'AbortError') {
+                            copyToClipboardiOS(summary + '\n\nJSON Data:\n' + JSON.stringify(lastRecordingResults, null, 2), 'ppg_data.json');
+                        }
+                    });
+                } else {
+                    copyToClipboardiOS(summary + '\n\nJSON Data:\n' + JSON.stringify(lastRecordingResults, null, 2), 'ppg_data.json');
+                }
+                
+            } catch (error) {
+                showError('Sharing failed: ' + error.message);
+            }
+        }
+
+        // Helper functions for iOS Safari
+        function isIOSSafari() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|OPiOS|mercury/.test(navigator.userAgent);
+        }
+
+        async function copyToClipboardiOS(content, filename) {
+            try {
+                if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(content);
+                    showCopyInstructions(filename);
+                } else {
+                    showContentWindow(content, filename);
+                }
+            } catch (error) {
+                showContentWindow(content, filename);
+            }
+        }
+
+        function showCopyInstructions(filename) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 400px; text-align: center;">
+                    <h3 style="margin-bottom: 20px; color: #007cff;">✅ Data Copied!</h3>
+                    <p style="margin-bottom: 20px; line-height: 1.5;">
+                        Your PPG data has been <strong>copied to clipboard</strong>.<br><br>
+                        <strong>To save as ${filename}:</strong><br>
+                        1. Open <strong>Notes</strong> app<br>
+                        2. Paste the data<br>
+                        3. Save/export from there
+                    </p>
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="background: #007cff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold;">
+                        Got it!
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            setTimeout(() => { if (modal.parentElement) modal.remove(); }, 10000);
+        }
+
+        function showContentWindow(content, filename) {
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(`
+                <html>
+                <head><title>${filename}</title></head>
+                <body style="font-family: monospace; padding: 20px; white-space: pre-wrap;">
+                    <h2>${filename}</h2>
+                    <p><em>Copy this content and save it manually:</em></p>
+                    <textarea style="width: 100%; height: 400px; font-family: monospace;" readonly>${content}</textarea>
+                </body>
+                </html>
+            `);
         }
 
         // Initialize
