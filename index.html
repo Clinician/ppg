@@ -125,6 +125,15 @@
             font-weight: bold;
             margin-bottom: 20px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        .quality-check {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
         }
 
         .recording-status {
@@ -528,10 +537,11 @@
                     <div class="camera-info">
                         <h3>📱 Camera PPG Recording Instructions</h3>
                         <ul>
-                            <li>Place your fingertip gently over the rear camera and flash</li>
-                            <li>Ensure the flash light shines through your fingertip</li>
-                            <li>Hold steady for the entire 10-second recording</li>
-                            <li>The app will automatically extract RGB data for PPG analysis</li>
+                            <li><strong>Click "Start PPG Recording"</strong> to begin</li>
+                            <li><strong>Place your fingertip</strong> gently over the rear camera and flash</li>
+                            <li><strong>Wait for "Good signal detected!"</strong> - the app will check quality automatically</li>
+                            <li><strong>Once quality is good</strong>, recording starts automatically for 10 seconds</li>
+                            <li><strong>Hold steady</strong> throughout the entire process</li>
                         </ul>
                     </div>
 
@@ -558,7 +568,7 @@
                             📹 Disable Camera
                         </button>
                         <button id="record-btn" class="btn btn-record" onclick="startRecording()" disabled>
-                            🔴 Start PPG Recording
+                            🔴 Start Quality Check & Recording
                         </button>
                         <button id="stop-btn" class="btn btn-secondary" onclick="stopRecording()" disabled style="display: none;">
                             ⏹️ Stop Recording
@@ -661,14 +671,15 @@
         let flashEnabled = false;
         let recordingFrames = [];
         let isRecording = false;
+        let isCheckingQuality = false;
         let recordingInterval = null;
-        let countdownInterval = null;
+        let qualityCheckInterval = null;
         let recordingStartTime = 0;
         let lastRecordingResults = null; // Store last results for export
         const RECORDING_DURATION = 10000; // 10 seconds
-        const COUNTDOWN_DURATION = 3; // 3 seconds
         const FRAME_RATE = 10; // Reduced to 10fps for mobile stability
         const MAX_CANVAS_SIZE = 320; // Limit canvas size to reduce memory usage
+        const QUALITY_CHECK_SAMPLES = 5; // Number of samples needed for quality check
 
         // Video2PPGConverter class from uploaded file
         class Video2PPGConverter {
@@ -1092,10 +1103,11 @@
             try {
                 debugLog('Stopping recording...');
                 isRecording = false;
+                isCheckingQuality = false;
                 
-                if (countdownInterval) {
-                    clearInterval(countdownInterval);
-                    countdownInterval = null;
+                if (qualityCheckInterval) {
+                    clearInterval(qualityCheckInterval);
+                    qualityCheckInterval = null;
                 }
                 
                 if (recordingInterval) {
@@ -1130,9 +1142,17 @@
             document.getElementById('record-btn').disabled = false;
             document.getElementById('stop-btn').style.display = 'none';
             document.getElementById('camera-overlay').style.display = 'none';
-            document.getElementById('countdown-display').style.display = 'block';
+            document.getElementById('quality-check-display').style.display = 'block';
             document.getElementById('recording-status').style.display = 'none';
             document.getElementById('recording-progress').style.width = '0%';
+            
+            // Reset quality check display
+            const qualityStatus = document.getElementById('quality-status');
+            const qualitySamples = document.getElementById('quality-samples');
+            qualityStatus.innerHTML = '🔍 Checking signal quality...';
+            qualityStatus.style.color = '#ffd700';
+            qualitySamples.textContent = 'Samples: 0/5';
+            
             // Keep debug info visible for troubleshooting
         }
 
@@ -1334,6 +1354,7 @@
                     <button class="btn btn-primary" onclick="exportPPGData('json')">📄 Export JSON</button>
                     <button class="btn btn-primary" onclick="exportPPGData('csv')">📊 Export CSV</button>
                     <button class="btn btn-secondary" onclick="exportPPGData('txt')">📝 Export TXT</button>
+                    <button class="btn btn-secondary" onclick="sharePPGData()">📤 Share Data</button>
                 </div>
             `;
             resultsContainer.appendChild(summaryCard);
@@ -1390,7 +1411,59 @@
             });
         }
 
-        // Export PPG data in different formats
+        // Share PPG data using Web Share API (mobile-friendly)
+        async function sharePPGData() {
+            if (!lastRecordingResults) {
+                showError('No recording data available to share');
+                return;
+            }
+
+            try {
+                // Create shareable content
+                const timestamp = new Date().toLocaleString();
+                const summary = `PPG Recording (${lastRecordingResults.platform.toUpperCase()})\n` +
+                               `Recorded: ${timestamp}\n` +
+                               `Frames: ${lastRecordingResults.frameCount}\n` +
+                               `Duration: ${(lastRecordingResults.duration / 1000).toFixed(1)}s\n\n` +
+                               `Sample RGB: ${lastRecordingResults.data[0]?.avgRgb.r}, ${lastRecordingResults.data[0]?.avgRgb.g}, ${lastRecordingResults.data[0]?.avgRgb.b}\n` +
+                               `Sample YUV: ${lastRecordingResults.data[0]?.avgYuv.y}, ${lastRecordingResults.data[0]?.avgYuv.u}, ${lastRecordingResults.data[0]?.avgYuv.v}\n` +
+                               `Quality: ${lastRecordingResults.data[0]?.ppg.qualityWarning ? 'Warning' : 'Good'}\n\n` +
+                               `Full data available in JSON export.`;
+
+                // Check if Web Share API is available (iOS Safari supports this)
+                if (navigator.share) {
+                    // Create a blob with JSON data
+                    const jsonContent = JSON.stringify(lastRecordingResults, null, 2);
+                    const blob = new Blob([jsonContent], { type: 'application/json' });
+                    const file = new File([blob], `ppg_recording_${Date.now()}.json`, { type: 'application/json' });
+
+                    await navigator.share({
+                        title: 'PPG Recording Data',
+                        text: summary,
+                        files: [file]
+                    });
+
+                    debugLog('Data shared successfully');
+                } else {
+                    // Fallback: copy to clipboard
+                    if (navigator.clipboard) {
+                        await navigator.clipboard.writeText(summary + '\n\nJSON Data:\n' + JSON.stringify(lastRecordingResults, null, 2));
+                        alert('PPG data copied to clipboard!');
+                    } else {
+                        // Last resort: show data in alert
+                        alert('Share not supported. Here\'s the summary:\n\n' + summary);
+                    }
+                }
+                
+            } catch (error) {
+                if (error.name !== 'AbortError') { // User cancelled sharing
+                    console.error('Share failed:', error);
+                    showError('Sharing failed: ' + error.message);
+                }
+            }
+        }
+
+        // Export PPG data in different formats (iOS Safari compatible)
         function exportPPGData(format) {
             if (!lastRecordingResults) {
                 showError('No recording data available to export');
@@ -1471,24 +1544,123 @@
                         break;
                 }
 
-                // Create and download file
-                const blob = new Blob([content], { type: mimeType });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                
-                URL.revokeObjectURL(url);
-                
-                debugLog(`Exported ${format.toUpperCase()} file: ${filename}`);
+                // iOS Safari compatibility: Try multiple methods
+                if (isIOSSafari()) {
+                    // Method 1: Try native iOS share if available
+                    if (navigator.share && format === 'json') {
+                        const blob = new Blob([content], { type: mimeType });
+                        const file = new File([blob], filename, { type: mimeType });
+                        
+                        navigator.share({
+                            title: 'PPG Data Export',
+                            files: [file]
+                        }).then(() => {
+                            debugLog(`Shared ${format.toUpperCase()} file: ${filename}`);
+                        }).catch(() => {
+                            // Fallback to copy method
+                            copyToClipboardiOS(content, filename);
+                        });
+                        return;
+                    }
+                    
+                    // Method 2: Copy to clipboard with instructions
+                    copyToClipboardiOS(content, filename);
+                    
+                } else {
+                    // Standard download for other browsers
+                    const blob = new Blob([content], { type: mimeType });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    URL.revokeObjectURL(url);
+                    debugLog(`Downloaded ${format.toUpperCase()} file: ${filename}`);
+                }
                 
             } catch (error) {
                 showError('Export failed: ' + error.message);
             }
+        }
+
+        // Detect iOS Safari
+        function isIOSSafari() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|OPiOS|mercury/.test(navigator.userAgent);
+        }
+
+        // iOS-friendly copy to clipboard with instructions
+        async function copyToClipboardiOS(content, filename) {
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(content);
+                    
+                    // Show modal with instructions
+                    showCopyInstructions(filename);
+                    
+                } else {
+                    // Fallback: Show content in new window
+                    showContentWindow(content, filename);
+                }
+            } catch (error) {
+                showContentWindow(content, filename);
+            }
+        }
+
+        // Show copy instructions modal
+        function showCopyInstructions(filename) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.8); z-index: 1000;
+                display: flex; align-items: center; justify-content: center;
+                padding: 20px;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 15px; padding: 30px; max-width: 400px; text-align: center;">
+                    <h3 style="margin-bottom: 20px; color: #007cff;">✅ Data Copied!</h3>
+                    <p style="margin-bottom: 20px; line-height: 1.5;">
+                        Your PPG data has been <strong>copied to clipboard</strong>.<br><br>
+                        <strong>To save as ${filename}:</strong><br>
+                        1. Open <strong>Notes</strong> or <strong>Files</strong> app<br>
+                        2. Paste the data (long press → Paste)<br>
+                        3. Save/export from there
+                    </p>
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="background: #007cff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold;">
+                        Got it!
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                if (modal.parentElement) {
+                    modal.remove();
+                }
+            }, 10000);
+        }
+
+        // Show content in new window (fallback)
+        function showContentWindow(content, filename) {
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(`
+                <html>
+                <head><title>${filename}</title></head>
+                <body style="font-family: monospace; padding: 20px; white-space: pre-wrap;">
+                    <h2>${filename}</h2>
+                    <p><em>Copy this content and save it manually:</em></p>
+                    <textarea style="width: 100%; height: 400px; font-family: monospace;" readonly>${content}</textarea>
+                </body>
+                </html>
+            `);
         }
 
         // RGB to YUV conversion functions (for manual input)
@@ -1643,6 +1815,7 @@
                         <button class="btn btn-primary" onclick="exportPPGData('json')">📄 Export JSON</button>
                         <button class="btn btn-primary" onclick="exportPPGData('csv')">📊 Export CSV</button>
                         <button class="btn btn-secondary" onclick="exportPPGData('txt')">📝 Export TXT</button>
+                        <button class="btn btn-secondary" onclick="sharePPGData()">📤 Share Data</button>
                     </div>
                 `;
                 resultsContainer.appendChild(exportCard);
