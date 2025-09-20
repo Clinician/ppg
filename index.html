@@ -560,26 +560,26 @@
                 'moto_g_2022': -14.9
             },
             
-            // Quality thresholds (research-validated)
+            // Quality thresholds (adjusted for browser camera limitations)
             QUALITY_THRESHOLDS: {
                 ios: {
-                    min_variance: 2.0,
-                    min_intensity_range: 8.0,
-                    min_brightness: 40,
-                    max_brightness: 200,
-                    max_variation: 120
+                    min_variance: 1.0,
+                    min_intensity_range: 5.0,
+                    min_brightness: 20,
+                    max_brightness: 240,
+                    max_variation: 180
                 },
                 android: {
-                    min_signal_quality: 0.1,
-                    max_variance: 20,
-                    max_intensity: 200,
-                    min_intensity: 15,
-                    min_range: 8
+                    min_signal_quality: 0.05,
+                    max_variance: 30,
+                    max_intensity: 240,
+                    min_intensity: 10,
+                    min_range: 5
                 }
             }
         };
 
-        // Global state
+        // Global state (fixed flash tracking)
         let mediaStream = null;
         let videoTrack = null;
         let isRecording = false;
@@ -587,6 +587,7 @@
         let currentZLO = 0;
         let isCalibrated = false;
         let cameraCapabilities = {};
+        let flashEnabled = false; // Add explicit flash state tracking
 
         // Debug logging
         function debugLog(message) {
@@ -746,7 +747,7 @@
             ccText.textContent = isCalibrated ? 'ZLO Calibrated ✅' : 'Not Calibrated ⚠️';
         }
 
-        // Research-based quality assessment
+        // Research-based quality assessment (fixed scoring)
         function assessSignalQuality(pixelData, platform) {
             const thresholds = RESEARCH_CONFIG.QUALITY_THRESHOLDS[platform];
             
@@ -758,29 +759,35 @@
             
             let qualityScore = 0;
             let qualityReasons = [];
+            let passedTests = 0;
+            let totalTests = 4;
             
             if (platform === 'ios') {
                 // iOS-specific quality assessment (from research)
                 if (stdDev >= thresholds.min_variance) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Low variance (${stdDev.toFixed(2)} < ${thresholds.min_variance})`);
                 }
                 
                 if (range >= thresholds.min_intensity_range) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Low range (${range.toFixed(1)} < ${thresholds.min_intensity_range})`);
                 }
                 
                 if (mean >= thresholds.min_brightness && mean <= thresholds.max_brightness) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Brightness out of range (${mean.toFixed(1)} not in ${thresholds.min_brightness}-${thresholds.max_brightness})`);
                 }
                 
                 if (range <= thresholds.max_variation) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Too much variation (${range.toFixed(1)} > ${thresholds.max_variation})`);
                 }
@@ -791,38 +798,54 @@
                 
                 if (signalQuality >= thresholds.min_signal_quality) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Poor signal quality (${(signalQuality*100).toFixed(1)}% < ${thresholds.min_signal_quality*100}%)`);
                 }
                 
                 if (stdDev <= thresholds.max_variance) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Excessive noise (σ=${stdDev.toFixed(1)} > ${thresholds.max_variance})`);
                 }
                 
                 if (mean <= thresholds.max_intensity && mean >= thresholds.min_intensity) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Intensity out of range (${mean.toFixed(1)} not in ${thresholds.min_intensity}-${thresholds.max_intensity})`);
                 }
                 
                 if (range >= thresholds.min_range) {
                     qualityScore += 25;
+                    passedTests++;
                 } else {
                     qualityReasons.push(`Insufficient range (${range.toFixed(1)} < ${thresholds.min_range})`);
                 }
             }
             
+            // Determine grade based on actual score
+            let grade;
+            if (qualityScore >= 75) grade = 'excellent';
+            else if (qualityScore >= 50) grade = 'good';
+            else if (qualityScore >= 25) grade = 'poor';
+            else grade = 'bad';
+            
+            debugLog(`Quality Assessment: ${qualityScore}% (${passedTests}/${totalTests} tests passed) - Grade: ${grade}`);
+            if (qualityReasons.length > 0) {
+                debugLog(`Quality Issues: ${qualityReasons.join('; ')}`);
+            }
+            
             return {
                 score: qualityScore,
-                grade: qualityScore >= 75 ? 'excellent' : qualityScore >= 50 ? 'good' : qualityScore >= 25 ? 'poor' : 'bad',
+                grade: grade,
                 reasons: qualityReasons,
-                metrics: { mean, variance, stdDev, range }
+                metrics: { mean, variance, stdDev, range, passedTests, totalTests }
             };
         }
 
-        // ZLO Calibration (research-based)
+        // ZLO Calibration (research-based) - Fixed camera state management
         async function startZLOCalibration() {
             try {
                 debugLog('🎯 Starting ZLO calibration (research method)...');
@@ -842,6 +865,13 @@
                 );
                 
                 if (!proceed) return;
+                
+                // Save current button states
+                const recordBtnWasDisabled = document.getElementById('record-btn').disabled;
+                
+                // Disable recording during calibration
+                document.getElementById('record-btn').disabled = true;
+                document.getElementById('record-btn').textContent = '⏳ Calibrating...';
                 
                 // Measure ZLO
                 const measurements = [];
@@ -875,6 +905,12 @@
                 
                 debugLog(`✅ ZLO calibrated: ${currentZLO.toFixed(2)} (${measurements.length} measurements)`);
                 
+                // Restore button states
+                if (mediaStream && !recordBtnWasDisabled) {
+                    document.getElementById('record-btn').disabled = false;
+                }
+                document.getElementById('record-btn').textContent = '🔴 Start Recording';
+                
                 // Update UI
                 updateCalibrationStatus();
                 updateCameraStatusDisplay();
@@ -882,6 +918,10 @@
             } catch (error) {
                 debugLog(`❌ ZLO calibration failed: ${error.message}`);
                 showError('Calibration failed: ' + error.message);
+                
+                // Restore UI on error
+                document.getElementById('record-btn').disabled = false;
+                document.getElementById('record-btn').textContent = '🔴 Start Recording';
             }
         }
 
@@ -1695,24 +1735,34 @@
             debugLog('📹 Camera stopped');
         }
 
-        // Flash control
+        // Flash control (fixed synchronization)
         async function toggleFlash() {
-            if (!videoTrack) return;
+            if (!videoTrack) {
+                debugLog('⚠️ No video track available for flash control');
+                return;
+            }
             
             try {
-                const currentConstraints = videoTrack.getConstraints();
-                const flashOn = currentConstraints.advanced && 
-                              currentConstraints.advanced.some(c => c.torch === true);
+                debugLog(`💡 Toggling flash: currently ${flashEnabled ? 'ON' : 'OFF'}`);
                 
-                await videoTrack.applyConstraints({
-                    advanced: [{ torch: !flashOn }]
-                });
+                const constraints = {
+                    advanced: [{ torch: !flashEnabled }]
+                };
                 
-                document.getElementById('flash-btn').textContent = flashOn ? '💡 Flash Off' : '💡 Flash On';
-                debugLog(`💡 Flash ${flashOn ? 'disabled' : 'enabled'}`);
+                await videoTrack.applyConstraints(constraints);
+                
+                // Update state and UI
+                flashEnabled = !flashEnabled;
+                const flashBtn = document.getElementById('flash-btn');
+                flashBtn.textContent = flashEnabled ? '🔦 Flash On' : '💡 Flash Off';
+                
+                debugLog(`💡 Flash ${flashEnabled ? 'enabled' : 'disabled'} successfully`);
                 
             } catch (error) {
                 debugLog(`⚠️ Flash control failed: ${error.message}`);
+                // Reset button state on failure
+                const flashBtn = document.getElementById('flash-btn');
+                flashBtn.textContent = flashEnabled ? '🔦 Flash On' : '💡 Flash Off';
             }
         }
 
