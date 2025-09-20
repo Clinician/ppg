@@ -925,7 +925,7 @@
             }
         }
 
-        // Load known device calibration
+        // Load known device calibration (fixed to preserve camera state)
         function loadKnownCalibration() {
             const device = prompt(
                 'Enter device model:\n\n' +
@@ -954,6 +954,14 @@
                 }
             }
             
+            // Ensure camera controls remain active if camera is initialized
+            if (mediaStream && videoTrack) {
+                document.getElementById('record-btn').disabled = false;
+                if (cameraCapabilities.torch) {
+                    document.getElementById('flash-btn').disabled = false;
+                }
+            }
+            
             updateCalibrationStatus();
             updateCameraStatusDisplay();
         }
@@ -972,7 +980,7 @@
             }
         }
 
-        // Research-optimized PPG signal extraction with ZLO correction
+        // Research-optimized PPG signal extraction with ZLO correction (fixed U/V channel bug)
         function extractPPGSignals(imageData, width, height, platform) {
             const nROIs = 3;
             const ppgValues = new Array(3 * nROIs + 3).fill(0);
@@ -989,7 +997,7 @@
                 bChannel.push(pixels[i + 2]);
             }
             
-            // Convert RGB to YUV arrays for processing
+            // Convert RGB to YUV arrays for processing (FIXED U/V calculation)
             const yArray = new Uint8Array(width * height);
             const uArray = new Uint8Array(Math.floor(width * height / 2));
             const vArray = new Uint8Array(Math.floor(width * height / 2));
@@ -999,7 +1007,7 @@
                 const g = gChannel[i];
                 const b = bChannel[i];
                 
-                // YUV conversion
+                // YUV conversion (fixed)
                 const Y = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
                 const U = Math.round(-0.14713 * r - 0.28886 * g + 0.436 * b + 128);
                 const V = Math.round(0.615 * r - 0.51499 * g - 0.10001 * b + 128);
@@ -1007,11 +1015,16 @@
                 if (i < yArray.length) {
                     yArray[i] = Math.max(0, Math.min(255, Y));
                 }
+                
+                // FIXED: Separate U and V channel assignment
                 if (i < uArray.length * 2) {
                     const uvIndex = Math.floor(i / 2);
-                    if (uvIndex < uArray.length && i % 2 === 0) {
-                        uArray[uvIndex] = Math.max(0, Math.min(255, U));
-                        vArray[uvIndex] = Math.max(0, Math.min(255, V));
+                    if (uvIndex < uArray.length) {
+                        if (i % 2 === 0) {
+                            uArray[uvIndex] = Math.max(0, Math.min(255, U));
+                        } else {
+                            vArray[uvIndex] = Math.max(0, Math.min(255, V));
+                        }
                     }
                 }
             }
@@ -1229,7 +1242,7 @@
             };
         }
 
-        // Main PPG processing function
+        // Main PPG processing function (fixed quality assessment bug)
         function processOptimizedPPG(imageData, timestamp) {
             const platform = document.getElementById('platform-select').value;
             const canvas = document.getElementById('capture-canvas');
@@ -1256,8 +1269,24 @@
                 b: Math.round(bSum / pixelCount)
             };
             
-            // Quality assessment for real-time display
-            const qualityAssessment = assessSignalQuality(ppgResult.signals.slice(0, 9), platform);
+            // FIXED: Use the PPG signals for quality assessment, not raw pixel data
+            const signalArray = ppgResult.signals.slice(0, 9).filter(s => s > 0); // Remove zeros
+            let qualityAssessment;
+            
+            if (signalArray.length > 0) {
+                qualityAssessment = assessSignalQuality(signalArray, platform);
+            } else {
+                // Fallback if no valid signals
+                qualityAssessment = {
+                    score: 0,
+                    grade: 'bad',
+                    reasons: ['No valid PPG signals detected'],
+                    metrics: { mean: 0, variance: 0, stdDev: 0, range: 0, passedTests: 0, totalTests: 4 }
+                };
+            }
+            
+            debugLog(`PPG Processing: Platform=${platform}, Signals=[${ppgResult.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}]`);
+            debugLog(`Quality: ${qualityAssessment.score}% (${qualityAssessment.grade}) - ${ppgResult.qualityReason}`);
             
             return {
                 timestamp,
@@ -1366,11 +1395,17 @@
             }
         }
 
-        // Stop recording and show results
+        // Stop recording and show results (fixed flash auto-disable)
         function stopRecording() {
             debugLog('⏹️ Stopping recording...');
             isRecording = false;
             resetRecordingUI();
+            
+            // Auto-disable flash after recording
+            if (flashEnabled && videoTrack) {
+                debugLog('🔦 Auto-disabling flash after recording');
+                toggleFlash();
+            }
             
             if (recordingFrames.length > 0) {
                 showOptimizedResults();
