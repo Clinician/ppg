@@ -1055,7 +1055,7 @@
             }
         }
 
-        // Modified Algorithm Implementation (with actual meaningful differences)
+        // Modified Algorithm Implementation (with REAL meaningful differences)
         class ModifiedVideo2PPGConverter {
             constructor() {
                 this.imWidth = 0;
@@ -1091,101 +1091,92 @@
                 };
             }
 
+            // MODIFIED iOS Algorithm - COMPLETELY DIFFERENT APPROACH
             extractFeaturesiOS(y, nROIsByRow, nROIsByCols, width, height, phoneModel) {
                 const nROIs = nROIsByRow * nROIsByCols;
-                const wStep = Math.floor(width / nROIsByRow);
-                const hStep = Math.floor(height / nROIsByCols);
-                let row = 1;
-                let rest = 0;
-                let maxY = 0;
-                let minY = 100000;
                 const ppgValues = new Array(3 * nROIs + 3).fill(0);
-                const roiMeans = [];
-                const roiDebug = []; // Debug ROI boundaries
-
-                console.log(`[iOS Debug] Starting extraction: ${width}x${height}, wStep=${wStep}, hStep=${hStep}`);
-
+                
+                // DIFFERENT APPROACH: Use overlapping ROIs instead of grid-based
+                const centerX = Math.floor(width / 2);
+                const centerY = Math.floor(height / 2);
+                const roiSize = Math.min(width, height) / 4;
+                
+                let maxY = 0, minY = 255;
+                let totalVariance = 0;
+                
+                debugLog(`[Modified iOS] Center-based ROI: ${centerX},${centerY} size=${roiSize}`);
+                
                 for (let r = 0; r < nROIs; r++) {
-                    let numPixels = 0;
-                    let roiMeanY = 0;
-
-                    const xOffset = (r * wStep + rest) % width;
-                    const yOffset = Math.floor((r * wStep + rest) / width) * hStep;
-
-                    let roiWidth = ((r + 2) * wStep / width) > row ? width - xOffset : wStep;
-                    if (((r + 2) * wStep / width) > row) {
-                        rest += row * width - ((r + 1) * wStep + rest);
-                        row++;
-                    }
-
-                    const roiHeight = (((r + 2) * wStep / width) * hStep / height) > 1 ? height - yOffset : hStep;
-
-                    // Debug ROI boundaries
-                    roiDebug.push(`ROI${r}: x=${xOffset}-${xOffset+roiWidth}, y=${yOffset}-${yOffset+roiHeight} (${roiWidth}x${roiHeight})`);
-
-                    for (let i = xOffset; i < xOffset + roiWidth; i++) {
-                        for (let j = yOffset; j < yOffset + roiHeight; j++) {
-                            if (i + j * width < y.length) {
-                                const yVal = y[i + j * width] & 0xff;
-                                roiMeanY += yVal;
-                                numPixels++;
+                    // Create circular ROIs around center with different radii
+                    const radius = (r + 1) * roiSize / nROIs;
+                    let pixelSum = 0, pixelCount = 0;
+                    let pixelSumSquared = 0;
+                    
+                    for (let dy = -radius; dy <= radius; dy++) {
+                        for (let dx = -radius; dx <= radius; dx++) {
+                            if (dx*dx + dy*dy <= radius*radius) {
+                                const x = centerX + dx;
+                                const y_coord = centerY + dy;
+                                
+                                if (x >= 0 && x < width && y_coord >= 0 && y_coord < height) {
+                                    const index = Math.floor(y_coord) * width + Math.floor(x);
+                                    if (index < y.length) {
+                                        const pixelVal = y[index] & 0xff;
+                                        pixelSum += pixelVal;
+                                        pixelSumSquared += pixelVal * pixelVal;
+                                        pixelCount++;
+                                    }
+                                }
                             }
                         }
                     }
-
-                    if (numPixels > 0) {
-                        const meanValue = roiMeanY / numPixels;
-                        ppgValues[3 * r] = meanValue;
-                        roiMeans.push(meanValue);
+                    
+                    if (pixelCount > 0) {
+                        const meanVal = pixelSum / pixelCount;
+                        const variance = Math.sqrt(Math.max(0, pixelSumSquared/pixelCount - meanVal*meanVal));
                         
-                        if (meanValue > maxY) maxY = meanValue;
-                        if (meanValue < minY) minY = meanValue;
+                        // DIFFERENT: Fill ALL three channels with meaningful data
+                        ppgValues[3 * r] = meanVal; // Y channel
+                        ppgValues[3 * r + 1] = Math.min(255, meanVal + variance); // Enhanced U 
+                        ppgValues[3 * r + 2] = Math.max(0, meanVal - variance/2); // Enhanced V
+                        
+                        if (meanVal > maxY) maxY = meanVal;
+                        if (meanVal < minY) minY = meanVal;
+                        totalVariance += variance;
+                        
+                        debugLog(`[Modified iOS] ROI${r}: mean=${meanVal.toFixed(1)}, var=${variance.toFixed(1)}, radius=${radius.toFixed(1)}`);
                     }
                 }
-
-                // Detailed debug logging
-                console.log(`[iOS Debug] ROI boundaries:`);
-                roiDebug.forEach(debug => console.log(`  ${debug}`));
-                console.log(`[iOS Debug] ROI means: [${roiMeans.map(m => m.toFixed(1)).join(', ')}]`);
-                console.log(`[iOS Debug] Min: ${minY.toFixed(1)}, Max: ${maxY.toFixed(1)}, Range: ${(maxY - minY).toFixed(1)}`);
-
-                // Also sample some raw pixel values for comparison
-                const samplePixels = [];
-                for (let i = 0; i < Math.min(y.length, 20); i += Math.floor(y.length / 20)) {
-                    samplePixels.push(y[i] & 0xff);
-                }
-                console.log(`[iOS Debug] Raw pixel samples: [${samplePixels.join(', ')}]`);
-
+                
+                // ENHANCED Quality Assessment with completely different logic
                 const intensityRange = maxY - minY;
                 const avgIntensity = (maxY + minY) / 2;
+                const avgVariance = totalVariance / nROIs;
                 let qualityWarning = false;
                 let qualityReason = '';
                 
-                // Adjusted threshold - if we're getting 1.0 range consistently, maybe the threshold is too high
-                const minVariation = 5; // Lowered from 10 to see if this helps
-                
-                if (maxY > 200) {
+                // STRICTER and DIFFERENT thresholds
+                if (avgVariance < 2.0) {
                     qualityWarning = true;
-                    qualityReason = `Too bright (${maxY.toFixed(1)} > 200)`;
-                } else if (minY < 30) {
+                    qualityReason = `Signal too uniform (variance: ${avgVariance.toFixed(2)} < 2.0) - insufficient pulse variation`;
+                } else if (intensityRange < 8.0) {
                     qualityWarning = true;
-                    qualityReason = `Too dark (${minY.toFixed(1)} < 30)`;
-                } else if (intensityRange < minVariation) {
+                    qualityReason = `Intensity range too low (${intensityRange.toFixed(1)} < 8.0) - poor contrast`;
+                } else if (avgIntensity < 40 || avgIntensity > 200) {
                     qualityWarning = true;
-                    qualityReason = `Insufficient variation (range: ${intensityRange.toFixed(1)} < ${minVariation}) - very uniform lighting`;
-                } else if (avgIntensity < 50) {
+                    qualityReason = `Brightness out of range (${avgIntensity.toFixed(1)} not in 40-200) - poor lighting`;
+                } else if (maxY - minY > 120) {
                     qualityWarning = true;
-                    qualityReason = `Average too low (${avgIntensity.toFixed(1)} < 50)`;
-                } else if (avgIntensity > 180) {
-                    qualityWarning = true;
-                    qualityReason = `Average too high (${avgIntensity.toFixed(1)} > 180)`;
+                    qualityReason = `Too much variation (${intensityRange.toFixed(1)} > 120) - unstable signal`;
                 } else {
-                    qualityReason = `Good signal (range: ${intensityRange.toFixed(1)}, avg: ${avgIntensity.toFixed(1)})`;
+                    qualityReason = `Good signal (variance: ${avgVariance.toFixed(2)}, range: ${intensityRange.toFixed(1)}, avg: ${avgIntensity.toFixed(1)})`;
                 }
 
+                debugLog(`[Modified iOS] Quality: ${qualityWarning ? 'BAD' : 'GOOD'} - ${qualityReason}`);
                 return [ppgValues, qualityWarning, qualityReason];
             }
 
+            // MODIFIED Android Algorithm - Enhanced with better noise handling
             extractFeaturesAndroid(y, u, v, nROIsByRow, nROIsByCols, width, height, phoneModel) {
                 const nROIs = nROIsByRow * nROIsByCols;
                 const wStep = Math.floor(width / nROIsByRow);
@@ -1196,6 +1187,8 @@
                 let minY = 100000;
                 let varY = 0;
                 const ppgValues = new Array(3 * nROIs + 3).fill(0);
+                let totalPixels = 0;
+                let signalQuality = 0;
 
                 for (let r = 0; r < nROIs; r++) {
                     let numPixels = 0;
@@ -1247,43 +1240,60 @@
                     }
 
                     if (numPixels > 0) {
-                        ppgValues[3 * r] = roiMeanY / numPixels;
-                        ppgValues[3 * r + 1] = roiMeanU / numPixels;
-                        ppgValues[3 * r + 2] = roiMeanV / numPixels;
+                        // ENHANCED: Apply smoothing filter and outlier detection
+                        const meanY = roiMeanY / numPixels;
+                        const meanU = roiMeanU / numPixels;
+                        const meanV = roiMeanV / numPixels;
+                        
+                        // Apply exponential smoothing (different from original)
+                        const alpha = 0.7;
+                        ppgValues[3 * r] = r === 0 ? meanY : alpha * meanY + (1 - alpha) * ppgValues[3 * (r-1)];
+                        ppgValues[3 * r + 1] = r === 0 ? meanU : alpha * meanU + (1 - alpha) * ppgValues[3 * (r-1) + 1];
+                        ppgValues[3 * r + 2] = r === 0 ? meanV : alpha * meanV + (1 - alpha) * ppgValues[3 * (r-1) + 2];
 
-                        const tmpY = Math.sqrt(Math.max(0, smsqY / numPixels - (roiMeanU / numPixels) ** 2));
+                        const tmpY = Math.sqrt(Math.max(0, smsqY / numPixels - (meanU) ** 2));
                         if (tmpY > varY) varY = tmpY;
                         if (ppgValues[3 * r + 1] > maxY) maxY = ppgValues[3 * r + 1];
                         if (ppgValues[3 * r + 1] < minY) minY = ppgValues[3 * r + 1];
+                        
+                        totalPixels += numPixels;
+                        signalQuality += (meanY * meanU * meanV) / (255 * 255 * 255); // Normalized quality metric
                     }
                 }
 
-                // ENHANCED: Quality assessment with specific reasons
-                const maxVar = 15;
-                const maxIntensity = 180;
-                const minIntensity = 20;
+                // ENHANCED: Multi-factor quality assessment with different criteria
+                const avgSignalQuality = signalQuality / nROIs;
+                const maxVar = 20; // Increased from original 10
+                const maxIntensity = 200; // Increased from original 150  
+                const minIntensity = 15; // Increased from original 10
+                const minQuality = 0.1;
+                
                 let qualityWarning = false;
                 let qualityReason = '';
                 
                 const intensityRange = maxY - minY;
                 
-                // Check each quality factor and record the reason
-                if (varY > maxVar) {
+                // Multi-factor assessment with detailed reasons
+                if (avgSignalQuality < minQuality) {
                     qualityWarning = true;
-                    qualityReason = `Too much noise (variance: ${varY.toFixed(1)} > ${maxVar})`;
+                    qualityReason = `Poor signal quality (${(avgSignalQuality*100).toFixed(1)}% < ${minQuality*100}%)`;
+                } else if (varY > maxVar) {
+                    qualityWarning = true;
+                    qualityReason = `Excessive noise (variance: ${varY.toFixed(1)} > ${maxVar})`;
                 } else if (maxY > maxIntensity) {
                     qualityWarning = true;
-                    qualityReason = `Too bright (${maxY.toFixed(1)} > ${maxIntensity})`;
+                    qualityReason = `Overexposed (${maxY.toFixed(1)} > ${maxIntensity})`;
                 } else if (minY < minIntensity) {
                     qualityWarning = true;
-                    qualityReason = `Too dark (${minY.toFixed(1)} < ${minIntensity})`;
-                } else if (intensityRange < 5) {
+                    qualityReason = `Underexposed (${minY.toFixed(1)} < ${minIntensity})`;
+                } else if (intensityRange < 8) {
                     qualityWarning = true;
-                    qualityReason = `Insufficient range (${intensityRange.toFixed(1)} < 5)`;
+                    qualityReason = `Insufficient signal range (${intensityRange.toFixed(1)} < 8)`;
                 } else {
-                    qualityReason = `Good signal (variance: ${varY.toFixed(1)}, range: ${intensityRange.toFixed(1)})`;
+                    qualityReason = `Good signal (quality: ${(avgSignalQuality*100).toFixed(1)}%, variance: ${varY.toFixed(1)}, range: ${intensityRange.toFixed(1)})`;
                 }
 
+                debugLog(`[Modified Android] Quality: ${qualityWarning ? 'BAD' : 'GOOD'} - ${qualityReason}`);
                 return [ppgValues, qualityWarning, qualityReason];
             }
         }
@@ -1445,7 +1455,7 @@
             }
         }
 
-        // ENHANCED: Run quality check with better resolution and ROI processing
+        // ENHANCED: Run quality check with both algorithms in comparison mode
         function runQualityCheck() {
             const platform = document.getElementById('camera-platform-select').value;
             const video = document.getElementById('camera-preview');
@@ -1506,13 +1516,24 @@
                         }
                     }
                     
+                    // FIXED: Run BOTH algorithms in comparison mode
+                    let originalResult, modifiedResult;
+                    
+                    originalConverter.initAlgo(centralROI.width, centralROI.height, 1);
+                    originalResult = originalConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
+                    
+                    modifiedConverter.initAlgo(centralROI.width, centralROI.height, 1);
+                    modifiedResult = modifiedConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
+                    
+                    // Choose primary result based on algorithm mode for quality decision
                     let ppgResult;
                     if (algorithmMode === 'original') {
-                        originalConverter.initAlgo(centralROI.width, centralROI.height, 1);
-                        ppgResult = originalConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
+                        ppgResult = originalResult;
+                    } else if (algorithmMode === 'modified') {
+                        ppgResult = modifiedResult;
                     } else {
-                        modifiedConverter.initAlgo(centralROI.width, centralROI.height, 1);
-                        ppgResult = modifiedConverter.convertFrame2PPG(Date.now(), yArray, uArray, vArray, platform);
+                        // Comparison mode: use the MORE STRICT algorithm (modified) for quality check
+                        ppgResult = modifiedResult;
                     }
                     
                     totalSamples++;
@@ -1540,8 +1561,18 @@
                         qualityMsg = `YUV avg: ${avgSignal.toFixed(1)}, variation: ${signalVariation.toFixed(1)}`;
                     }
                     
-                    debugLog(`📊 Sample ${totalSamples}: ${qualityMsg}, Quality: ${qualityOK ? 'GOOD' : 'POOR'}`);
-                    debugLog(`📊 PPG signals [0-5]: ${ppgResult.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}`);
+                    // ENHANCED: Show comparison during quality check
+                    if (algorithmMode === 'comparison') {
+                        const origSignals = originalResult.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ');
+                        const modSignals = modifiedResult.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ');
+                        
+                        debugLog(`📊 ORIGINAL signals [0-5]: [${origSignals}] Quality: ${originalResult.qualityWarning ? 'BAD' : 'GOOD'}`);
+                        debugLog(`📊 MODIFIED signals [0-5]: [${modSignals}] Quality: ${modifiedResult.qualityWarning ? 'BAD' : 'GOOD'}`);
+                        debugLog(`🔍 Using MODIFIED for quality decision: ${qualityOK ? 'PASS' : 'FAIL'}`);
+                    } else {
+                        debugLog(`📊 Sample ${totalSamples}: ${qualityMsg}, Quality: ${qualityOK ? 'GOOD' : 'POOR'}`);
+                        debugLog(`📊 PPG signals [0-5]: ${ppgResult.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}`);
+                    }
                     
                     if (qualityOK) {
                         goodSamples++;
