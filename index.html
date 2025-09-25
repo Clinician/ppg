@@ -58,41 +58,6 @@
             padding: 40px;
         }
 
-        .tabs {
-            display: flex;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #e9ecef;
-        }
-
-        .tab {
-            padding: 15px 25px;
-            background: none;
-            border: none;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            color: #666;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s ease;
-        }
-
-        .tab.active {
-            color: #007cff;
-            border-bottom-color: #007cff;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .camera-section {
-            text-align: center;
-        }
-
         .calibration-status {
             background: #e3f2fd;
             border: 2px solid #2196f3;
@@ -114,41 +79,43 @@
             color: #2e7d32;
         }
 
-        .camera-controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .control-group {
+        .camera-section {
             background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-        }
-
-        .control-group h4 {
-            margin-bottom: 10px;
-            color: #333;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
         }
 
         .camera-container {
             position: relative;
-            max-width: 400px;
-            margin: 0 auto 30px;
+            max-width: 500px;
+            margin: 0 auto 20px;
             border-radius: 20px;
             overflow: hidden;
-            background: #f8f9fa;
+            background: #333;
+            border: 3px solid #007cff;
         }
 
         .camera-preview {
             width: 100%;
-            height: 300px;
+            height: 400px;
             object-fit: cover;
             background: #333;
+            display: block;
+        }
+
+        .camera-placeholder {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(45deg, #333 25%, #444 25%, #444 50%, #333 50%, #333 75%, #444 75%);
+            background-size: 20px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ccc;
+            font-size: 1.2rem;
+            text-align: center;
+            line-height: 1.5;
         }
 
         .camera-overlay {
@@ -161,9 +128,33 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.8);
             color: white;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .camera-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-group {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+        }
+
+        .control-group h4 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .btn {
@@ -176,6 +167,7 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            width: 100%;
         }
 
         .btn:disabled {
@@ -204,9 +196,30 @@
             color: #333;
         }
 
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007cff, #0056b3);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
         .results {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
             gap: 30px;
             margin-top: 40px;
         }
@@ -216,11 +229,38 @@
             border-radius: 15px;
             padding: 25px;
             border: 2px solid #e9ecef;
+            position: relative;
         }
 
         .result-card.optimized {
             border-color: #28a745;
             background: linear-gradient(135deg, #f8fff9 0%, #f0fff4 100%);
+        }
+
+        .result-card.original {
+            border-color: #007cff;
+            background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+        }
+
+        .algorithm-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .algorithm-badge.optimized {
+            background: #28a745;
+            color: white;
+        }
+
+        .algorithm-badge.original {
+            background: #007cff;
+            color: white;
         }
 
         .quality-metrics {
@@ -258,55 +298,27 @@
             background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
         }
 
-        .settings-panel {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
+        .quality-warning {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
         }
 
-        .settings-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
+        .quality-good {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
         }
 
-        .setting-item {
-            background: white;
-            border-radius: 10px;
-            padding: 15px;
-            border: 2px solid #e9ecef;
+        .quality-bad {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
         }
 
-        .setting-item.optimal {
-            border-color: #4caf50;
-        }
-
-        .setting-item.suboptimal {
-            border-color: #ff9800;
-        }
-
-        .setting-item.error {
-            border-color: #f44336;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e9ecef;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 20px 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #007cff, #0056b3);
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-
-        .algorithm-comparison {
+        .comparison-summary {
             background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
             border: 2px solid #ff9800;
             border-radius: 15px;
@@ -314,17 +326,13 @@
             margin: 30px 0;
         }
 
-        .comparison-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 15px;
-        }
-
-        .comparison-item {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
+        .research-reference {
+            background: linear-gradient(135deg, #e8eaf6 0%, #f3e5f5 100%);
+            border: 2px solid #9c27b0;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 30px 0;
+            font-size: 0.9rem;
         }
 
         #debug-info {
@@ -337,15 +345,6 @@
             display: none;
             max-height: 300px;
             overflow-y: auto;
-        }
-
-        .research-reference {
-            background: linear-gradient(135deg, #e8eaf6 0%, #f3e5f5 100%);
-            border: 2px solid #9c27b0;
-            border-radius: 15px;
-            padding: 20px;
-            margin: 30px 0;
-            font-size: 0.9rem;
         }
 
         @media (max-width: 768px) {
@@ -375,159 +374,83 @@
         </div>
         
         <div class="research-notice">
-            ⚗️ Based on "A calibration method for smartphone camera photoplethysmography" (Xuan et al., 2023) - Achieving 74% higher accuracy through proper calibration
+            Based on "A calibration method for smartphone camera photoplethysmography" (Xuan et al., 2023) - Achieving 74% higher accuracy through proper calibration
         </div>
         
         <div class="main-content">
+            <!-- Calibration Status - Now at the top -->
             <div class="calibration-status uncalibrated" id="calibration-status">
-                <h3>📊 Camera Calibration Status</h3>
+                <h3>Camera Calibration Status</h3>
                 <p id="calibration-message">Device not calibrated. Please run ZLO calibration for optimal accuracy.</p>
-                <div class="controls" style="margin-top: 15px;">
-                    <button class="btn btn-warning" onclick="startZLOCalibration()">🎯 Calibrate Zero Light Offset</button>
-                    <button class="btn btn-secondary" onclick="loadKnownCalibration()">📱 Load Known Device Calibration</button>
-                </div>
-            </div>
-
-            <div class="tabs">
-                <button class="tab active" onclick="switchTab('optimized')">🔬 Research-Optimized</button>
-                <button class="tab" onclick="switchTab('comparison')">📊 Algorithm Comparison</button>
-                <button class="tab" onclick="switchTab('calibration')">⚙️ Camera Calibration</button>
-            </div>
-
-            <!-- Research-Optimized Tab -->
-            <div id="optimized-tab" class="tab-content active">
-                <div class="settings-panel">
-                    <h3>📱 Optimized Camera Settings (Based on Xuan et al. 2023)</h3>
-                    <div class="settings-grid">
-                        <div class="setting-item" id="tone-mapping-status">
-                            <h4>Tone Mapping</h4>
-                            <p id="tone-mapping-text">Checking...</p>
-                        </div>
-                        <div class="setting-item" id="exposure-status">
-                            <h4>Exposure Control</h4>
-                            <p id="exposure-text">Checking...</p>
-                        </div>
-                        <div class="setting-item" id="white-balance-status">
-                            <h4>White Balance</h4>
-                            <p id="white-balance-text">Checking...</p>
-                        </div>
-                        <div class="setting-item" id="color-correction-status">
-                            <h4>Color Correction</h4>
-                            <p id="color-correction-text">Checking...</p>
-                        </div>
+                <div class="camera-controls">
+                    <div class="control-group">
+                        <button class="btn btn-warning" onclick="startZLOCalibration()">Calibrate Zero Light Offset</button>
                     </div>
-                </div>
-
-                <div class="camera-section">
-                    <div class="camera-container">
-                        <video id="camera-preview" class="camera-preview" autoplay muted></video>
-                        <canvas id="capture-canvas" style="display: none;"></canvas>
-                        <div id="camera-overlay" class="camera-overlay" style="display: none;">
-                            <div id="signal-quality" style="font-size: 1.3rem; margin-bottom: 15px;">
-                                📶 Analyzing signal quality...
-                            </div>
-                            <div id="quality-details" style="font-size: 0.9rem; opacity: 0.8;">
-                                Implementing research-validated quality assessment
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="progress-bar">
-                        <div id="recording-progress" class="progress-fill"></div>
-                    </div>
-
-                    <div class="camera-controls">
-                        <div class="control-group">
-                            <h4>Camera Control</h4>
-                            <button id="start-camera-btn" class="btn btn-secondary" onclick="initOptimizedCamera()">
-                                📹 Initialize Camera
-                            </button>
-                            <button id="stop-camera-btn" class="btn btn-secondary" onclick="stopCamera()" disabled style="display: none;">
-                                ⏹️ Stop Camera
-                            </button>
-                        </div>
-                        
-                        <div class="control-group">
-                            <h4>PPG Recording</h4>
-                            <button id="record-btn" class="btn btn-primary" onclick="startOptimizedRecording()" disabled>
-                                🔴 Start Recording
-                            </button>
-                            <button id="stop-record-btn" class="btn btn-secondary" onclick="stopRecording()" disabled style="display: none;">
-                                ⏹️ Stop Recording
-                            </button>
-                        </div>
-                        
-                        <div class="control-group">
-                            <h4>Platform</h4>
-                            <select id="platform-select">
-                                <option value="android">Android (Optimal)</option>
-                                <option value="ios">iOS (Limited)</option>
-                            </select>
-                        </div>
-                        
-                        <div class="control-group">
-                            <h4>Flash Control</h4>
-                            <button id="flash-btn" class="btn btn-secondary" onclick="toggleFlash()" disabled>
-                                💡 Flash Off
-                            </button>
-                        </div>
+                    <div class="control-group">
+                        <button class="btn btn-secondary" onclick="loadKnownCalibration()">Load Known Device Calibration</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Algorithm Comparison Tab -->
-            <div id="comparison-tab" class="tab-content">
-                <div class="algorithm-comparison">
-                    <h3>📊 Research Validation: Original vs Optimized Algorithms</h3>
-                    <div class="comparison-grid">
-                        <div class="comparison-item">
-                            <h4>📚 Original Implementation</h4>
-                            <p><strong>iOS:</strong> value-0-0 pattern, hardcoded quality</p>
-                            <p><strong>Android:</strong> Basic Y-U-V processing</p>
-                            <p><strong>Quality:</strong> Always returns "Good"</p>
-                            <p><strong>Accuracy:</strong> Baseline (pre-research)</p>
-                        </div>
-                        <div class="comparison-item">
-                            <h4>🔬 Research-Optimized</h4>
-                            <p><strong>iOS:</strong> Linear tone mapping, ZLO correction</p>
-                            <p><strong>Android:</strong> Enhanced processing with calibration</p>
-                            <p><strong>Quality:</strong> Multi-factor assessment with reasons</p>
-                            <p><strong>Accuracy:</strong> +74% improvement (Xuan et al.)</p>
-                        </div>
-                    </div>
-                </div>
+            <!-- Camera Section - Moved to top and reorganized -->
+            <div class="camera-section">
+                <h3>Camera Setup & Recording</h3>
                 
-                <!-- Comparison will be populated here during recording -->
-                <div id="comparison-results"></div>
-            </div>
-
-            <!-- Camera Calibration Tab -->
-            <div id="calibration-tab" class="tab-content">
-                <div class="research-reference">
-                    <h3>📖 Zero Light Offset (ZLO) Calibration</h3>
-                    <p><strong>Research Finding:</strong> Different smartphone models have varying hardware sensor thresholds (ZLO values) that significantly affect PPG accuracy.</p>
-                    <p><strong>Known Values:</strong> Pixel 4: -22.5, Pixel 7: -14, Galaxy S22: -19.6, Moto G 2022: -14.9</p>
-                    <p><strong>Impact:</strong> Without ZLO correction, ratio calculations grossly overestimate AC components, leading to poor PPG measurements.</p>
+                <div class="camera-container">
+                    <video id="camera-preview" class="camera-preview" autoplay muted style="display: none;"></video>
+                    <div id="camera-placeholder" class="camera-placeholder">
+                        Camera Not Initialized<br>
+                        Click "Initialize Camera" to begin
+                    </div>
+                    <canvas id="capture-canvas" style="display: none;"></canvas>
+                    <div id="camera-overlay" class="camera-overlay" style="display: none;">
+                        <div id="signal-quality" style="font-size: 1.3rem; margin-bottom: 15px;">
+                            Analyzing signal quality...
+                        </div>
+                        <div id="quality-details" style="font-size: 0.9rem; opacity: 0.8;">
+                            Place fingertip gently over rear camera
+                        </div>
+                    </div>
                 </div>
 
-                <div class="settings-panel">
-                    <h3>🎯 Calibration Process</h3>
-                    <div id="calibration-steps">
-                        <div class="setting-item">
-                            <h4>Step 1: Linear Tone Mapping</h4>
-                            <p>Ensure camera uses linear tone mapping instead of default automatic (sRGB/non-linear)</p>
-                            <button class="btn btn-secondary" onclick="validateToneMapping()">Validate</button>
-                        </div>
-                        <div class="setting-item">
-                            <h4>Step 2: Fixed Camera Settings</h4>
-                            <p>Disable auto-exposure, auto-white balance, set fixed ISO and exposure time</p>
-                            <button class="btn btn-secondary" onclick="applyFixedSettings()">Apply</button>
-                        </div>
-                        <div class="setting-item">
-                            <h4>Step 3: ZLO Measurement</h4>
-                            <p>Cover camera completely and measure zero-light offset for this device</p>
-                            <button class="btn btn-primary" onclick="measureZLO()">Measure ZLO</button>
-                        </div>
+                <div class="progress-bar">
+                    <div id="recording-progress" class="progress-fill"></div>
+                </div>
+
+                <div class="camera-controls">
+                    <div class="control-group">
+                        <h4>Camera Control</h4>
+                        <button id="start-camera-btn" class="btn btn-primary" onclick="initCamera()">
+                            Initialize Camera
+                        </button>
+                        <button id="stop-camera-btn" class="btn btn-secondary" onclick="stopCamera()" disabled style="display: none;">
+                            Stop Camera
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h4>PPG Recording</h4>
+                        <button id="record-btn" class="btn btn-success" onclick="startRecording()" disabled>
+                            Start Recording
+                        </button>
+                        <button id="stop-record-btn" class="btn btn-danger" onclick="stopRecording()" disabled style="display: none;">
+                            Stop Recording
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h4>Platform</h4>
+                        <select id="platform-select" class="btn btn-secondary" style="text-transform: none;">
+                            <option value="android">Android (Optimal)</option>
+                            <option value="ios">iOS (Limited)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h4>Flash Control</h4>
+                        <button id="flash-btn" class="btn btn-secondary" onclick="toggleFlash()" disabled>
+                            Turn Flash On
+                        </button>
                     </div>
                 </div>
             </div>
@@ -535,8 +458,9 @@
             <div id="results" class="results"></div>
             
             <div id="debug-info">
-                <h4>🔧 Research Implementation Details:</h4>
+                <h4>Research Implementation Details:</h4>
                 <div id="debug-log"></div>
+                <button class="btn btn-secondary" onclick="toggleDebugInfo()" style="margin-top: 10px;">Hide Debug</button>
             </div>
         </div>
     </div>
@@ -544,15 +468,13 @@
     <script>
         // Research-based constants and configurations
         const RESEARCH_CONFIG = {
-            // From Xuan et al. 2023 - optimal camera settings
             TONE_MAPPING: 'linear',
             FRAME_RATE: 30,
-            EXPOSURE_TIME: 30, // ms
+            EXPOSURE_TIME: 30,
             ISO_SENSITIVITY: 55,
             SENSITIVITY_BOOST: 100,
             WHITE_BALANCE_GAINS: { red: 2, green_even: 1, green_odd: 1, blue: 2 },
             
-            // ZLO values from research (device-specific)
             KNOWN_ZLO: {
                 'pixel_4': -22.5,
                 'pixel_7': -14,
@@ -560,7 +482,6 @@
                 'moto_g_2022': -14.9
             },
             
-            // Quality thresholds (adjusted for browser camera limitations)
             QUALITY_THRESHOLDS: {
                 ios: {
                     min_variance: 1.0,
@@ -579,7 +500,7 @@
             }
         };
 
-        // Global state (fixed flash tracking)
+        // Global state
         let mediaStream = null;
         let videoTrack = null;
         let isRecording = false;
@@ -587,7 +508,7 @@
         let currentZLO = 0;
         let isCalibrated = false;
         let cameraCapabilities = {};
-        let flashEnabled = false; // Add explicit flash state tracking
+        let flashEnabled = false;
 
         // Debug logging
         function debugLog(message) {
@@ -601,20 +522,16 @@
             }
         }
 
-        // Tab switching
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelector(`.tab[onclick*="${tabName}"]`).classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(`${tabName}-tab`).classList.add('active');
+        function toggleDebugInfo() {
+            const debugInfo = document.getElementById('debug-info');
+            debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
         }
 
-        // Research-based camera initialization
-        async function initOptimizedCamera() {
+        // Camera initialization
+        async function initCamera() {
             try {
-                debugLog('🔬 Initializing research-optimized camera...');
+                debugLog('Initializing camera...');
                 
-                // Request camera with research-recommended constraints
                 const constraints = {
                     video: {
                         facingMode: "environment",
@@ -627,14 +544,16 @@
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 videoTrack = mediaStream.getVideoTracks()[0];
                 
-                // Get camera capabilities
                 cameraCapabilities = videoTrack.getCapabilities();
                 
                 const video = document.getElementById('camera-preview');
+                const placeholder = document.getElementById('camera-placeholder');
+                
                 video.srcObject = mediaStream;
-
-                // Apply research-validated settings
-                await applyResearchSettings();
+                
+                // Show video, hide placeholder
+                video.style.display = 'block';
+                placeholder.style.display = 'none';
                 
                 // Update UI
                 document.getElementById('start-camera-btn').style.display = 'none';
@@ -642,128 +561,366 @@
                 document.getElementById('stop-camera-btn').disabled = false;
                 document.getElementById('record-btn').disabled = false;
                 
+                // Flash control
                 if (cameraCapabilities.torch) {
                     document.getElementById('flash-btn').disabled = false;
                 }
                 
-                updateCameraStatusDisplay();
-                debugLog('✅ Research-optimized camera initialized successfully');
+                debugLog('Camera initialized successfully');
                 
             } catch (error) {
-                debugLog(`❌ Camera initialization failed: ${error.message}`);
+                debugLog(`Camera initialization failed: ${error.message}`);
                 showError('Camera access failed: ' + error.message);
             }
         }
 
-        // Apply research-validated camera settings
-        async function applyResearchSettings() {
-            if (!videoTrack) return;
+        // Stop camera and auto-cleanup after recording
+        function stopCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+                videoTrack = null;
+            }
+            
+            const video = document.getElementById('camera-preview');
+            const placeholder = document.getElementById('camera-placeholder');
+            
+            // Hide video, show placeholder
+            video.style.display = 'none';
+            video.srcObject = null;
+            placeholder.style.display = 'flex';
+            placeholder.textContent = 'Camera Stopped\nClick "Initialize Camera" to restart';
+            
+            // Reset UI
+            document.getElementById('start-camera-btn').style.display = 'inline-block';
+            document.getElementById('stop-camera-btn').style.display = 'none';
+            document.getElementById('record-btn').disabled = true;
+            document.getElementById('flash-btn').disabled = true;
+            document.getElementById('flash-btn').textContent = 'Turn Flash On';
+            
+            flashEnabled = false;
+            debugLog('Camera stopped and cleaned up');
+        }
+
+        // Flash control (fixed)
+        async function toggleFlash() {
+            if (!videoTrack || !cameraCapabilities.torch) {
+                debugLog('Flash not available');
+                return;
+            }
             
             try {
-                debugLog('⚙️ Applying research-validated camera settings...');
-                
                 const constraints = {
-                    advanced: []
+                    advanced: [{ torch: !flashEnabled }]
                 };
                 
-                // Linear tone mapping (Android Camera2 API equivalent)
-                if (cameraCapabilities.colorTemperature) {
-                    constraints.advanced.push({
-                        colorTemperature: 5600 // Daylight, consistent
-                    });
-                }
-                
-                // Fixed exposure (disable auto-exposure)
-                if (cameraCapabilities.exposureTime) {
-                    constraints.advanced.push({
-                        exposureTime: RESEARCH_CONFIG.EXPOSURE_TIME
-                    });
-                }
-                
-                // Fixed ISO
-                if (cameraCapabilities.iso) {
-                    constraints.advanced.push({
-                        iso: RESEARCH_CONFIG.ISO_SENSITIVITY
-                    });
-                }
-                
-                // White balance (disable auto)
-                if (cameraCapabilities.whiteBalanceMode) {
-                    constraints.advanced.push({
-                        whiteBalanceMode: 'manual'
-                    });
-                }
-                
                 await videoTrack.applyConstraints(constraints);
-                debugLog('✅ Research settings applied successfully');
+                
+                flashEnabled = !flashEnabled;
+                const flashBtn = document.getElementById('flash-btn');
+                flashBtn.textContent = flashEnabled ? 'Turn Flash Off' : 'Turn Flash On';
+                
+                debugLog(`Flash ${flashEnabled ? 'enabled' : 'disabled'}`);
                 
             } catch (error) {
-                debugLog(`⚠️ Some research settings unavailable: ${error.message}`);
-                // Continue anyway - browser limitations are expected
+                debugLog(`Flash control failed: ${error.message}`);
             }
         }
 
-        // Update camera status display based on research criteria
-        function updateCameraStatusDisplay() {
-            const settings = videoTrack.getSettings();
-            
-            // Tone mapping status
-            const toneMappingEl = document.getElementById('tone-mapping-status');
-            const toneMappingText = document.getElementById('tone-mapping-text');
-            if (settings.colorTemperature) {
-                toneMappingEl.className = 'setting-item optimal';
-                toneMappingText.textContent = `Fixed (${settings.colorTemperature}K) ✅`;
-            } else {
-                toneMappingEl.className = 'setting-item suboptimal';
-                toneMappingText.textContent = 'Auto (suboptimal) ⚠️';
+        // ZLO Calibration
+        async function startZLOCalibration() {
+            try {
+                debugLog('Starting ZLO calibration...');
+                
+                if (!mediaStream) {
+                    alert('Please initialize camera first');
+                    return;
+                }
+                
+                const proceed = confirm(
+                    'ZLO Calibration Process:\n\n' +
+                    '1. Completely cover the camera lens with your finger\n' +
+                    '2. Ensure no light reaches the sensor\n' +
+                    '3. Click OK to start measurement\n\n' +
+                    'This measures the sensor\'s zero-light offset for accurate PPG calculations.'
+                );
+                
+                if (!proceed) return;
+                
+                // Measure ZLO
+                const measurements = [];
+                const video = document.getElementById('camera-preview');
+                const canvas = document.getElementById('capture-canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                
+                for (let i = 0; i < 10; i++) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const pixels = Array.from(imageData.data);
+                    
+                    let sum = 0;
+                    for (let j = 0; j < pixels.length; j += 4) {
+                        sum += pixels[j] + pixels[j+1] + pixels[j+2];
+                    }
+                    const avgPixelValue = sum / (pixels.length * 3 / 4);
+                    measurements.push(avgPixelValue);
+                    
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                currentZLO = measurements.reduce((a, b) => a + b, 0) / measurements.length;
+                isCalibrated = true;
+                
+                debugLog(`ZLO calibrated: ${currentZLO.toFixed(2)}`);
+                updateCalibrationStatus();
+                
+            } catch (error) {
+                debugLog(`ZLO calibration failed: ${error.message}`);
+                showError('Calibration failed: ' + error.message);
             }
-            
-            // Exposure status
-            const exposureEl = document.getElementById('exposure-status');
-            const exposureText = document.getElementById('exposure-text');
-            if (settings.exposureTime) {
-                exposureEl.className = 'setting-item optimal';
-                exposureText.textContent = `Fixed ${settings.exposureTime}ms ✅`;
-            } else {
-                exposureEl.className = 'setting-item suboptimal';
-                exposureText.textContent = 'Auto (suboptimal) ⚠️';
-            }
-            
-            // White balance status
-            const wbEl = document.getElementById('white-balance-status');
-            const wbText = document.getElementById('white-balance-text');
-            if (settings.whiteBalanceMode === 'manual') {
-                wbEl.className = 'setting-item optimal';
-                wbText.textContent = 'Manual (optimal) ✅';
-            } else {
-                wbEl.className = 'setting-item suboptimal';
-                wbText.textContent = 'Auto (suboptimal) ⚠️';
-            }
-            
-            // Color correction status
-            const ccEl = document.getElementById('color-correction-status');
-            const ccText = document.getElementById('color-correction-text');
-            ccEl.className = 'setting-item ' + (isCalibrated ? 'optimal' : 'suboptimal');
-            ccText.textContent = isCalibrated ? 'ZLO Calibrated ✅' : 'Not Calibrated ⚠️';
         }
 
-        // Research-based quality assessment (fixed scoring)
-        function assessSignalQuality(pixelData, platform) {
+        // Load known calibration
+        function loadKnownCalibration() {
+            const device = prompt(
+                'Enter device model:\n\n' +
+                '- pixel_4 (ZLO: -22.5)\n' +
+                '- pixel_7 (ZLO: -14)\n' +
+                '- galaxy_s22 (ZLO: -19.6)\n' +
+                '- moto_g_2022 (ZLO: -14.9)\n\n' +
+                'Or enter custom ZLO value:'
+            );
+            
+            if (!device) return;
+            
+            if (RESEARCH_CONFIG.KNOWN_ZLO[device.toLowerCase()]) {
+                currentZLO = RESEARCH_CONFIG.KNOWN_ZLO[device.toLowerCase()];
+                isCalibrated = true;
+                debugLog(`Loaded calibration for ${device}: ZLO = ${currentZLO}`);
+            } else {
+                const customZLO = parseFloat(device);
+                if (!isNaN(customZLO)) {
+                    currentZLO = customZLO;
+                    isCalibrated = true;
+                    debugLog(`Custom ZLO calibration: ${currentZLO}`);
+                } else {
+                    alert('Invalid device or ZLO value');
+                    return;
+                }
+            }
+            
+            updateCalibrationStatus();
+        }
+
+        // Update calibration status
+        function updateCalibrationStatus() {
+            const statusEl = document.getElementById('calibration-status');
+            const messageEl = document.getElementById('calibration-message');
+            
+            if (isCalibrated) {
+                statusEl.className = 'calibration-status calibrated';
+                messageEl.textContent = `Device calibrated. ZLO: ${currentZLO.toFixed(2)} (Research-validated accuracy improvement expected)`;
+            } else {
+                statusEl.className = 'calibration-status uncalibrated';
+                messageEl.textContent = 'Device not calibrated. PPG measurements may be inaccurate without ZLO correction.';
+            }
+        }
+
+        // PPG Processing - Both Original and Optimized
+        function processWithBothAlgorithms(imageData, timestamp) {
+            const platform = document.getElementById('platform-select').value;
+            const canvas = document.getElementById('capture-canvas');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Process with original algorithm
+            const originalResult = processOriginalPPG(imageData, width, height, platform, timestamp);
+            
+            // Process with optimized algorithm  
+            const optimizedResult = processOptimizedPPG(imageData, width, height, platform, timestamp);
+            
+            return {
+                original: originalResult,
+                optimized: optimizedResult
+            };
+        }
+
+        // Original Algorithm Processing
+        function processOriginalPPG(imageData, width, height, platform, timestamp) {
+            const pixels = Array.from(imageData.data);
+            const nROIs = 3;
+            const ppgValues = new Array(3 * nROIs + 3).fill(0);
+            
+            // Simple grid-based ROI extraction (original method)
+            const wStep = Math.floor(width / nROIs);
+            const hStep = Math.floor(height / nROIs);
+            
+            for (let r = 0; r < nROIs; r++) {
+                let rSum = 0, gSum = 0, bSum = 0, pixelCount = 0;
+                
+                const xStart = r * wStep;
+                const xEnd = Math.min(xStart + wStep, width);
+                const yStart = 0;
+                const yEnd = Math.min(hStep, height);
+                
+                for (let y = yStart; y < yEnd; y++) {
+                    for (let x = xStart; x < xEnd; x++) {
+                        const index = (y * width + x) * 4;
+                        if (index < pixels.length - 3) {
+                            rSum += pixels[index];
+                            gSum += pixels[index + 1];
+                            bSum += pixels[index + 2];
+                            pixelCount++;
+                        }
+                    }
+                }
+                
+                if (pixelCount > 0) {
+                    const avgR = rSum / pixelCount;
+                    const avgG = gSum / pixelCount;
+                    const avgB = bSum / pixelCount;
+                    
+                    // Convert to YUV
+                    const Y = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
+                    const U = -0.14713 * avgR - 0.28886 * avgG + 0.436 * avgB + 128;
+                    const V = 0.615 * avgR - 0.51499 * avgG - 0.10001 * avgB + 128;
+                    
+                    if (platform === 'ios') {
+                        // Original iOS: only Y channel (value-0-0 pattern)
+                        ppgValues[3 * r] = Y;
+                        ppgValues[3 * r + 1] = 0;
+                        ppgValues[3 * r + 2] = 0;
+                    } else {
+                        // Original Android: Y-U-V channels
+                        ppgValues[3 * r] = Y;
+                        ppgValues[3 * r + 1] = U;
+                        ppgValues[3 * r + 2] = V;
+                    }
+                }
+            }
+            
+            // Original algorithm always returns "Good" quality (hardcoded)
+            return {
+                timestamp,
+                ppgSignals: ppgValues,
+                quality: { score: 100, grade: 'excellent', reasons: [] },
+                qualityWarning: false,
+                qualityReason: 'Original algorithm always returns "Good" (hardcoded)',
+                platform,
+                algorithm: 'original'
+            };
+        }
+
+        // Optimized Algorithm Processing
+        function processOptimizedPPG(imageData, width, height, platform, timestamp) {
+            const pixels = Array.from(imageData.data);
+            const nROIs = 3;
+            const ppgValues = new Array(3 * nROIs + 3).fill(0);
+            
+            // Enhanced circular ROI extraction for better signal capture
+            const centerX = Math.floor(width / 2);
+            const centerY = Math.floor(height / 2);
+            const maxRadius = Math.min(width, height) / 4;
+            
+            let signalValues = [];
+            
+            for (let r = 0; r < nROIs; r++) {
+                let rSum = 0, gSum = 0, bSum = 0, pixelCount = 0;
+                
+                const radius = (r + 1) * maxRadius / nROIs;
+                
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        if (dx*dx + dy*dy <= radius*radius) {
+                            const x = centerX + dx;
+                            const y = centerY + dy;
+                            
+                            if (x >= 0 && x < width && y >= 0 && y < height) {
+                                const index = (Math.floor(y) * width + Math.floor(x)) * 4;
+                                if (index < pixels.length - 3) {
+                                    rSum += pixels[index];
+                                    gSum += pixels[index + 1];
+                                    bSum += pixels[index + 2];
+                                    pixelCount++;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (pixelCount > 0) {
+                    const avgR = rSum / pixelCount;
+                    const avgG = gSum / pixelCount;
+                    const avgB = bSum / pixelCount;
+                    
+                    // Convert to YUV and apply ZLO correction
+                    let Y = 0.299 * avgR + 0.587 * avgG + 0.114 * avgB;
+                    let U = -0.14713 * avgR - 0.28886 * avgG + 0.436 * avgB + 128;
+                    let V = 0.615 * avgR - 0.51499 * avgG - 0.10001 * avgB + 128;
+                    
+                    // Apply ZLO correction if calibrated
+                    if (isCalibrated) {
+                        Y = Math.max(0, Y - currentZLO);
+                        U = Math.max(0, U - currentZLO);
+                        V = Math.max(0, V - currentZLO);
+                    }
+                    
+                    if (platform === 'ios') {
+                        // Optimized iOS: still maintains value-0-0 pattern
+                        ppgValues[3 * r] = Y;
+                        ppgValues[3 * r + 1] = 0;
+                        ppgValues[3 * r + 2] = 0;
+                        signalValues.push(Y);
+                    } else {
+                        // Optimized Android: enhanced Y-U-V processing
+                        ppgValues[3 * r] = Y;
+                        ppgValues[3 * r + 1] = U;
+                        ppgValues[3 * r + 2] = V;
+                        signalValues.push(Y, U, V);
+                    }
+                }
+            }
+            
+            // Enhanced quality assessment
+            const qualityResult = assessSignalQuality(signalValues, platform);
+            
+            return {
+                timestamp,
+                ppgSignals: ppgValues,
+                quality: qualityResult,
+                qualityWarning: qualityResult.score < 50,
+                qualityReason: qualityResult.reasons.length > 0 ? qualityResult.reasons.join('; ') : 'Good signal quality',
+                platform,
+                algorithm: 'optimized'
+            };
+        }
+
+        // Enhanced quality assessment
+        function assessSignalQuality(signalValues, platform) {
+            if (signalValues.length === 0) {
+                return {
+                    score: 0,
+                    grade: 'bad',
+                    reasons: ['No signal values detected'],
+                    metrics: {}
+                };
+            }
+            
             const thresholds = RESEARCH_CONFIG.QUALITY_THRESHOLDS[platform];
-            
-            // Calculate signal statistics
-            const mean = pixelData.reduce((a, b) => a + b, 0) / pixelData.length;
-            const variance = pixelData.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / pixelData.length;
+            const mean = signalValues.reduce((a, b) => a + b, 0) / signalValues.length;
+            const variance = signalValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / signalValues.length;
             const stdDev = Math.sqrt(variance);
-            const range = Math.max(...pixelData) - Math.min(...pixelData);
+            const range = Math.max(...signalValues) - Math.min(...signalValues);
             
             let qualityScore = 0;
             let qualityReasons = [];
             let passedTests = 0;
-            let totalTests = 4;
+            const totalTests = 4;
             
             if (platform === 'ios') {
-                // iOS-specific quality assessment (from research)
                 if (stdDev >= thresholds.min_variance) {
                     qualityScore += 25;
                     passedTests++;
@@ -791,9 +948,7 @@
                 } else {
                     qualityReasons.push(`Too much variation (${range.toFixed(1)} > ${thresholds.max_variation})`);
                 }
-                
             } else { // Android
-                // Android-specific quality assessment
                 const signalQuality = (mean * variance) / (255 * 255);
                 
                 if (signalQuality >= thresholds.min_signal_quality) {
@@ -807,7 +962,7 @@
                     qualityScore += 25;
                     passedTests++;
                 } else {
-                    qualityReasons.push(`Excessive noise (σ=${stdDev.toFixed(1)} > ${thresholds.max_variance})`);
+                    qualityReasons.push(`Excessive noise (${stdDev.toFixed(1)} > ${thresholds.max_variance})`);
                 }
                 
                 if (mean <= thresholds.max_intensity && mean >= thresholds.min_intensity) {
@@ -825,7 +980,6 @@
                 }
             }
             
-            // Determine grade based on actual score
             let grade;
             if (qualityScore >= 75) grade = 'excellent';
             else if (qualityScore >= 50) grade = 'good';
@@ -833,9 +987,6 @@
             else grade = 'bad';
             
             debugLog(`Quality Assessment: ${qualityScore}% (${passedTests}/${totalTests} tests passed) - Grade: ${grade}`);
-            if (qualityReasons.length > 0) {
-                debugLog(`Quality Issues: ${qualityReasons.join('; ')}`);
-            }
             
             return {
                 score: qualityScore,
@@ -845,480 +996,15 @@
             };
         }
 
-        // ZLO Calibration (research-based) - Fixed camera state management
-        async function startZLOCalibration() {
-            try {
-                debugLog('🎯 Starting ZLO calibration (research method)...');
-                
-                if (!mediaStream) {
-                    alert('Please initialize camera first');
-                    return;
-                }
-                
-                // Instruct user to cover camera
-                const proceed = confirm(
-                    '📱 ZLO Calibration Process:\n\n' +
-                    '1. Completely cover the camera lens with your finger\n' +
-                    '2. Ensure no light reaches the sensor\n' +
-                    '3. Click OK to start measurement\n\n' +
-                    'This measures the sensor\'s zero-light offset for accurate PPG calculations.'
-                );
-                
-                if (!proceed) return;
-                
-                // Save current button states
-                const recordBtnWasDisabled = document.getElementById('record-btn').disabled;
-                
-                // Disable recording during calibration
-                document.getElementById('record-btn').disabled = true;
-                document.getElementById('record-btn').textContent = '⏳ Calibrating...';
-                
-                // Measure ZLO
-                const measurements = [];
-                const video = document.getElementById('camera-preview');
-                const canvas = document.getElementById('capture-canvas');
-                const ctx = canvas.getContext('2d');
-                
-                canvas.width = video.videoWidth || 640;
-                canvas.height = video.videoHeight || 480;
-                
-                // Take multiple measurements
-                for (let i = 0; i < 10; i++) {
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const pixels = Array.from(imageData.data);
-                    
-                    // Calculate average pixel value across all channels
-                    let sum = 0;
-                    for (let j = 0; j < pixels.length; j += 4) {
-                        sum += pixels[j] + pixels[j+1] + pixels[j+2]; // RGB sum
-                    }
-                    const avgPixelValue = sum / (pixels.length * 3 / 4);
-                    measurements.push(avgPixelValue);
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-                
-                // Calculate ZLO
-                currentZLO = measurements.reduce((a, b) => a + b, 0) / measurements.length;
-                isCalibrated = true;
-                
-                debugLog(`✅ ZLO calibrated: ${currentZLO.toFixed(2)} (${measurements.length} measurements)`);
-                
-                // Restore button states
-                if (mediaStream && !recordBtnWasDisabled) {
-                    document.getElementById('record-btn').disabled = false;
-                }
-                document.getElementById('record-btn').textContent = '🔴 Start Recording';
-                
-                // Update UI
-                updateCalibrationStatus();
-                updateCameraStatusDisplay();
-                
-            } catch (error) {
-                debugLog(`❌ ZLO calibration failed: ${error.message}`);
-                showError('Calibration failed: ' + error.message);
-                
-                // Restore UI on error
-                document.getElementById('record-btn').disabled = false;
-                document.getElementById('record-btn').textContent = '🔴 Start Recording';
-            }
-        }
-
-        // Load known device calibration (fixed to preserve camera state)
-        function loadKnownCalibration() {
-            const device = prompt(
-                'Enter device model:\n\n' +
-                '- pixel_4 (ZLO: -22.5)\n' +
-                '- pixel_7 (ZLO: -14)\n' +
-                '- galaxy_s22 (ZLO: -19.6)\n' +
-                '- moto_g_2022 (ZLO: -14.9)\n\n' +
-                'Or enter custom ZLO value:'
-            );
-            
-            if (!device) return;
-            
-            if (RESEARCH_CONFIG.KNOWN_ZLO[device.toLowerCase()]) {
-                currentZLO = RESEARCH_CONFIG.KNOWN_ZLO[device.toLowerCase()];
-                isCalibrated = true;
-                debugLog(`📱 Loaded known calibration for ${device}: ZLO = ${currentZLO}`);
-            } else {
-                const customZLO = parseFloat(device);
-                if (!isNaN(customZLO)) {
-                    currentZLO = customZLO;
-                    isCalibrated = true;
-                    debugLog(`🔧 Custom ZLO calibration: ${currentZLO}`);
-                } else {
-                    alert('Invalid device or ZLO value');
-                    return;
-                }
-            }
-            
-            // Ensure camera controls remain active if camera is initialized
-            if (mediaStream && videoTrack) {
-                document.getElementById('record-btn').disabled = false;
-                if (cameraCapabilities.torch) {
-                    document.getElementById('flash-btn').disabled = false;
-                }
-            }
-            
-            updateCalibrationStatus();
-            updateCameraStatusDisplay();
-        }
-
-        // Update calibration status display
-        function updateCalibrationStatus() {
-            const statusEl = document.getElementById('calibration-status');
-            const messageEl = document.getElementById('calibration-message');
-            
-            if (isCalibrated) {
-                statusEl.className = 'calibration-status calibrated';
-                messageEl.textContent = `✅ Device calibrated. ZLO: ${currentZLO.toFixed(2)} (Research-validated accuracy improvement expected)`;
-            } else {
-                statusEl.className = 'calibration-status uncalibrated';
-                messageEl.textContent = '⚠️ Device not calibrated. PPG measurements may be inaccurate without ZLO correction.';
-            }
-        }
-
-        // Research-optimized PPG signal extraction with ZLO correction (fixed U/V channel bug)
-        function extractPPGSignals(imageData, width, height, platform) {
-            const nROIs = 3;
-            const ppgValues = new Array(3 * nROIs + 3).fill(0);
-            const pixels = Array.from(imageData.data);
-            
-            // Convert to separate channel arrays
-            const rChannel = [];
-            const gChannel = [];
-            const bChannel = [];
-            
-            for (let i = 0; i < pixels.length; i += 4) {
-                rChannel.push(pixels[i]);
-                gChannel.push(pixels[i + 1]);
-                bChannel.push(pixels[i + 2]);
-            }
-            
-            // Convert RGB to YUV arrays for processing (FIXED U/V calculation)
-            const yArray = new Uint8Array(width * height);
-            const uArray = new Uint8Array(Math.floor(width * height / 2));
-            const vArray = new Uint8Array(Math.floor(width * height / 2));
-            
-            for (let i = 0; i < rChannel.length; i++) {
-                const r = rChannel[i];
-                const g = gChannel[i];
-                const b = bChannel[i];
-                
-                // YUV conversion (fixed)
-                const Y = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-                const U = Math.round(-0.14713 * r - 0.28886 * g + 0.436 * b + 128);
-                const V = Math.round(0.615 * r - 0.51499 * g - 0.10001 * b + 128);
-                
-                if (i < yArray.length) {
-                    yArray[i] = Math.max(0, Math.min(255, Y));
-                }
-                
-                // FIXED: Separate U and V channel assignment
-                if (i < uArray.length * 2) {
-                    const uvIndex = Math.floor(i / 2);
-                    if (uvIndex < uArray.length) {
-                        if (i % 2 === 0) {
-                            uArray[uvIndex] = Math.max(0, Math.min(255, U));
-                        } else {
-                            vArray[uvIndex] = Math.max(0, Math.min(255, V));
-                        }
-                    }
-                }
-            }
-            
-            // Extract features based on platform (research-based algorithms)
-            if (platform === 'ios') {
-                return extractFeaturesiOS(yArray, uArray, vArray, nROIs, width, height);
-            } else {
-                return extractFeaturesAndroid(yArray, uArray, vArray, nROIs, width, height);
-            }
-        }
-
-        // Research-based iOS feature extraction with ZLO correction
-        function extractFeaturesiOS(yArray, uArray, vArray, nROIs, width, height) {
-            const ppgValues = new Array(3 * nROIs + 3).fill(0);
-            const wStep = Math.floor(width / nROIs);
-            const hStep = Math.floor(height / nROIs);
-            
-            let maxY = 0;
-            let minY = 100000;
-            let totalVariance = 0;
-            
-            // Process ROIs with circular pattern (research enhancement)
-            const centerX = Math.floor(width / 2);
-            const centerY = Math.floor(height / 2);
-            const maxRadius = Math.min(width, height) / 4;
-            
-            for (let r = 0; r < nROIs; r++) {
-                let numPixels = 0;
-                let roiMeanY = 0;
-                let pixelSumSquared = 0;
-                
-                // Create circular ROI around center
-                const radius = (r + 1) * maxRadius / nROIs;
-                
-                for (let dy = -radius; dy <= radius; dy++) {
-                    for (let dx = -radius; dx <= radius; dx++) {
-                        if (dx*dx + dy*dy <= radius*radius) {
-                            const x = centerX + dx;
-                            const y = centerY + dy;
-                            
-                            if (x >= 0 && x < width && y >= 0 && y < height) {
-                                const index = Math.floor(y) * width + Math.floor(x);
-                                if (index < yArray.length) {
-                                    const yVal = yArray[index] & 0xff;
-                                    roiMeanY += yVal;
-                                    pixelSumSquared += yVal * yVal;
-                                    numPixels++;
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                if (numPixels > 0) {
-                    const meanVal = roiMeanY / numPixels;
-                    const variance = Math.sqrt(Math.max(0, pixelSumSquared/numPixels - meanVal*meanVal));
-                    
-                    // Apply ZLO correction (research method)
-                    const correctedMean = Math.max(0, meanVal - currentZLO);
-                    
-                    // iOS pattern: Fill only Y channel (value-0-0 pattern)
-                    ppgValues[3 * r] = correctedMean;
-                    ppgValues[3 * r + 1] = 0; // U channel stays 0
-                    ppgValues[3 * r + 2] = 0; // V channel stays 0
-                    
-                    if (correctedMean > maxY) maxY = correctedMean;
-                    if (correctedMean < minY) minY = correctedMean;
-                    totalVariance += variance;
-                }
-            }
-            
-            // Research-based quality assessment for iOS
-            const avgVariance = totalVariance / nROIs;
-            const intensityRange = maxY - minY;
-            const avgIntensity = (maxY + minY) / 2;
-            
-            let qualityWarning = false;
-            let qualityReason = '';
-            
-            const thresholds = RESEARCH_CONFIG.QUALITY_THRESHOLDS.ios;
-            
-            if (avgVariance < thresholds.min_variance) {
-                qualityWarning = true;
-                qualityReason = `Signal too uniform (variance: ${avgVariance.toFixed(2)} < ${thresholds.min_variance})`;
-            } else if (intensityRange < thresholds.min_intensity_range) {
-                qualityWarning = true;
-                qualityReason = `Intensity range too low (${intensityRange.toFixed(1)} < ${thresholds.min_intensity_range})`;
-            } else if (avgIntensity < thresholds.min_brightness || avgIntensity > thresholds.max_brightness) {
-                qualityWarning = true;
-                qualityReason = `Brightness out of range (${avgIntensity.toFixed(1)} not in ${thresholds.min_brightness}-${thresholds.max_brightness})`;
-            } else {
-                qualityReason = `Good signal (variance: ${avgVariance.toFixed(2)}, range: ${intensityRange.toFixed(1)}, avg: ${avgIntensity.toFixed(1)})`;
-            }
-            
-            return {
-                signals: ppgValues,
-                qualityWarning,
-                qualityReason,
-                metrics: { avgVariance, intensityRange, avgIntensity, maxY, minY }
-            };
-        }
-
-        // Research-based Android feature extraction with ZLO correction
-        function extractFeaturesAndroid(yArray, uArray, vArray, nROIs, width, height) {
-            const ppgValues = new Array(3 * nROIs + 3).fill(0);
-            const wStep = Math.floor(width / nROIs);
-            const hStep = Math.floor(height / nROIs);
-            
-            let row = 1;
-            let rest = 0;
-            let maxY = 0;
-            let minY = 100000;
-            let varY = 0;
-            let totalPixels = 0;
-            let signalQuality = 0;
-            
-            for (let r = 0; r < nROIs; r++) {
-                let numPixels = 0;
-                let roiMeanY = 0;
-                let roiMeanU = 0;
-                let roiMeanV = 0;
-                let smsqY = 0;
-                
-                const xOffset = (r * wStep + rest) % width;
-                const yOffset = Math.floor((r * wStep + rest) / width) * hStep;
-                
-                let roiWidth = ((r + 2) * wStep / width) > row ? width - xOffset : wStep;
-                if (((r + 2) * wStep / width) > row) {
-                    rest += row * width - ((r + 1) * wStep + rest);
-                    row++;
-                }
-                
-                const roiHeight = (((r + 2) * wStep / width) * hStep / height) > 1 ? height - yOffset : hStep;
-                
-                for (let i = xOffset; i < xOffset + roiWidth; i++) {
-                    for (let j = yOffset; j < yOffset + roiHeight; j++) {
-                        if (i + j * width < yArray.length) {
-                            const xBy2 = Math.floor(i / 2);
-                            const yBy2 = Math.floor(j / 2);
-                            const yVal = yArray[i + j * width] & 0xff;
-                            const index = 2 * xBy2 + yBy2 * width;
-                            
-                            let uVal = 128, vVal = 128;
-                            
-                            if (index < uArray.length) {
-                                uVal = uArray[index] & 0xff;
-                            }
-                            if (index + 1 < uArray.length) {
-                                vVal = uArray[index + 1] & 0xff;
-                            }
-                            
-                            roiMeanY += yVal;
-                            roiMeanU += uVal;
-                            roiMeanV += vVal;
-                            smsqY += uVal * uVal;
-                            numPixels++;
-                        }
-                    }
-                }
-                
-                if (numPixels > 0) {
-                    const meanY = roiMeanY / numPixels;
-                    const meanU = roiMeanU / numPixels;
-                    const meanV = roiMeanV / numPixels;
-                    
-                    // Apply ZLO correction (research method)
-                    ppgValues[3 * r] = Math.max(0, meanY - currentZLO);
-                    ppgValues[3 * r + 1] = Math.max(0, meanU - currentZLO);
-                    ppgValues[3 * r + 2] = Math.max(0, meanV - currentZLO);
-                    
-                    const tmpY = Math.sqrt(Math.max(0, smsqY / numPixels - meanU ** 2));
-                    if (tmpY > varY) varY = tmpY;
-                    if (ppgValues[3 * r + 1] > maxY) maxY = ppgValues[3 * r + 1];
-                    if (ppgValues[3 * r + 1] < minY) minY = ppgValues[3 * r + 1];
-                    
-                    totalPixels += numPixels;
-                    signalQuality += (meanY * meanU * meanV) / (255 * 255 * 255);
-                }
-            }
-            
-            // Research-based quality assessment for Android
-            const avgSignalQuality = signalQuality / nROIs;
-            const intensityRange = maxY - minY;
-            
-            let qualityWarning = false;
-            let qualityReason = '';
-            
-            const thresholds = RESEARCH_CONFIG.QUALITY_THRESHOLDS.android;
-            
-            if (avgSignalQuality < thresholds.min_signal_quality) {
-                qualityWarning = true;
-                qualityReason = `Poor signal quality (${(avgSignalQuality*100).toFixed(1)}% < ${thresholds.min_signal_quality*100}%)`;
-            } else if (varY > thresholds.max_variance) {
-                qualityWarning = true;
-                qualityReason = `Excessive noise (variance: ${varY.toFixed(1)} > ${thresholds.max_variance})`;
-            } else if (maxY > thresholds.max_intensity) {
-                qualityWarning = true;
-                qualityReason = `Overexposed (${maxY.toFixed(1)} > ${thresholds.max_intensity})`;
-            } else if (minY < thresholds.min_intensity) {
-                qualityWarning = true;
-                qualityReason = `Underexposed (${minY.toFixed(1)} < ${thresholds.min_intensity})`;
-            } else if (intensityRange < thresholds.min_range) {
-                qualityWarning = true;
-                qualityReason = `Insufficient signal range (${intensityRange.toFixed(1)} < ${thresholds.min_range})`;
-            } else {
-                qualityReason = `Good signal (quality: ${(avgSignalQuality*100).toFixed(1)}%, variance: ${varY.toFixed(1)}, range: ${intensityRange.toFixed(1)})`;
-            }
-            
-            return {
-                signals: ppgValues,
-                qualityWarning,
-                qualityReason,
-                metrics: { avgSignalQuality, varY, intensityRange, maxY, minY }
-            };
-        }
-
-        // Main PPG processing function (fixed quality assessment bug)
-        function processOptimizedPPG(imageData, timestamp) {
-            const platform = document.getElementById('platform-select').value;
-            const canvas = document.getElementById('capture-canvas');
-            const width = canvas.width;
-            const height = canvas.height;
-            
-            // Extract PPG signals using research-based algorithms
-            const ppgResult = extractPPGSignals(imageData, width, height, platform);
-            
-            // Calculate average RGB for display
-            const pixels = Array.from(imageData.data);
-            let rSum = 0, gSum = 0, bSum = 0;
-            const pixelCount = pixels.length / 4;
-            
-            for (let i = 0; i < pixels.length; i += 4) {
-                rSum += pixels[i];
-                gSum += pixels[i + 1];
-                bSum += pixels[i + 2];
-            }
-            
-            const avgRGB = {
-                r: Math.round(rSum / pixelCount),
-                g: Math.round(gSum / pixelCount),
-                b: Math.round(bSum / pixelCount)
-            };
-            
-            // FIXED: Use the PPG signals for quality assessment, not raw pixel data
-            const signalArray = ppgResult.signals.slice(0, 9).filter(s => s > 0); // Remove zeros
-            let qualityAssessment;
-            
-            if (signalArray.length > 0) {
-                qualityAssessment = assessSignalQuality(signalArray, platform);
-            } else {
-                // Fallback if no valid signals
-                qualityAssessment = {
-                    score: 0,
-                    grade: 'bad',
-                    reasons: ['No valid PPG signals detected'],
-                    metrics: { mean: 0, variance: 0, stdDev: 0, range: 0, passedTests: 0, totalTests: 4 }
-                };
-            }
-            
-            debugLog(`PPG Processing: Platform=${platform}, Signals=[${ppgResult.signals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}]`);
-            debugLog(`Quality: ${qualityAssessment.score}% (${qualityAssessment.grade}) - ${ppgResult.qualityReason}`);
-            
-            return {
-                timestamp,
-                rgb: avgRGB,
-                ppgSignals: ppgResult.signals,
-                quality: qualityAssessment,
-                qualityWarning: ppgResult.qualityWarning,
-                qualityReason: ppgResult.qualityReason,
-                metrics: ppgResult.metrics,
-                zloCorrection: currentZLO,
-                platform
-            };
-        }
-
-        // Start optimized recording
-        async function startOptimizedRecording() {
+        // Start recording with both algorithms
+        async function startRecording() {
             if (!mediaStream) {
                 alert('Please initialize camera first');
                 return;
             }
             
-            if (!isCalibrated) {
-                const proceed = confirm(
-                    '⚠️ Device not calibrated!\n\n' +
-                    'Research shows 74% accuracy improvement with proper calibration.\n' +
-                    'Continue without calibration? (Results may be inaccurate)'
-                );
-                if (!proceed) return;
-            }
-            
             try {
-                debugLog('🔴 Starting research-optimized PPG recording...');
+                debugLog('Starting PPG recording with both algorithms...');
                 isRecording = true;
                 recordingFrames = [];
                 
@@ -1352,12 +1038,12 @@
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     
-                    // Process with research-optimized algorithm
-                    const ppgData = processOptimizedPPG(imageData, Date.now());
-                    recordingFrames.push(ppgData);
+                    // Process with both algorithms
+                    const results = processWithBothAlgorithms(imageData, Date.now());
+                    recordingFrames.push(results);
                     
-                    // Update real-time quality display
-                    updateQualityDisplay(ppgData.quality);
+                    // Update real-time display
+                    updateQualityDisplay(results.optimized.quality);
                     
                     frameCount++;
                     
@@ -1368,7 +1054,7 @@
                 }, 1000 / RESEARCH_CONFIG.FRAME_RATE);
                 
             } catch (error) {
-                debugLog(`❌ Recording failed: ${error.message}`);
+                debugLog(`Recording failed: ${error.message}`);
                 showError('Recording failed: ' + error.message);
                 resetRecordingUI();
             }
@@ -1380,35 +1066,39 @@
             const detailsEl = document.getElementById('quality-details');
             
             const gradeEmojis = {
-                excellent: '🟢',
-                good: '🔵', 
-                poor: '🟡',
-                bad: '🔴'
+                excellent: 'Excellent',
+                good: 'Good', 
+                poor: 'Poor',
+                bad: 'Bad'
             };
             
-            signalEl.innerHTML = `${gradeEmojis[quality.grade]} Signal Quality: ${quality.score}% (${quality.grade.toUpperCase()})`;
+            signalEl.textContent = `Signal Quality: ${quality.score}% (${gradeEmojis[quality.grade]})`;
             
             if (quality.reasons.length > 0) {
-                detailsEl.innerHTML = `Issues: ${quality.reasons.join(', ')}`;
+                detailsEl.textContent = `Issues: ${quality.reasons.join(', ')}`;
             } else {
-                detailsEl.innerHTML = `✅ All quality metrics passed (Research thresholds)`;
+                detailsEl.textContent = 'All quality metrics passed';
             }
         }
 
-        // Stop recording and show results (fixed flash auto-disable)
+        // Stop recording
         function stopRecording() {
-            debugLog('⏹️ Stopping recording...');
+            debugLog('Stopping recording...');
             isRecording = false;
             resetRecordingUI();
             
-            // Auto-disable flash after recording
+            // Auto-disable flash and stop camera after recording
             if (flashEnabled && videoTrack) {
-                debugLog('🔦 Auto-disabling flash after recording');
                 toggleFlash();
             }
             
+            // Auto-stop camera after recording
+            setTimeout(() => {
+                stopCamera();
+            }, 1000);
+            
             if (recordingFrames.length > 0) {
-                showOptimizedResults();
+                showBothResults();
             } else {
                 showError('No frames captured');
             }
@@ -1422,395 +1112,121 @@
             document.getElementById('recording-progress').style.width = '0%';
         }
 
-        // Show optimized results with PPG signals
-        function showOptimizedResults() {
+        // Show results from both algorithms
+        function showBothResults() {
             const resultsContainer = document.getElementById('results');
             resultsContainer.innerHTML = '';
             
             if (recordingFrames.length === 0) return;
             
-            // Calculate overall statistics
-            const avgQuality = recordingFrames.reduce((sum, frame) => sum + frame.quality.score, 0) / recordingFrames.length;
-            const qualityGrades = recordingFrames.map(f => f.quality.grade);
-            const gradeCounts = {
-                excellent: qualityGrades.filter(g => g === 'excellent').length,
-                good: qualityGrades.filter(g => g === 'good').length,
-                poor: qualityGrades.filter(g => g === 'poor').length,
-                bad: qualityGrades.filter(g => g === 'bad').length
-            };
+            // Add comparison summary
+            const comparisonCard = document.createElement('div');
+            comparisonCard.className = 'comparison-summary';
+            comparisonCard.innerHTML = `
+                <h3>Algorithm Comparison Results</h3>
+                <p><strong>Frames Processed:</strong> ${recordingFrames.length}</p>
+                <p><strong>Platform:</strong> ${document.getElementById('platform-select').value.toUpperCase()}</p>
+                <p><strong>Calibration Status:</strong> ${isCalibrated ? `ZLO: ${currentZLO.toFixed(2)}` : 'Not calibrated'}</p>
+                <div style="margin-top: 15px;">
+                    <strong>Key Difference:</strong> Original algorithm always reports "Good" quality (hardcoded), 
+                    while optimized algorithm provides actual quality assessment based on signal analysis.
+                </div>
+            `;
+            resultsContainer.appendChild(comparisonCard);
             
-            const firstFrame = recordingFrames[0];
+            // Show original results
+            displayAlgorithmResults('original', recordingFrames);
+            
+            // Show optimized results
+            displayAlgorithmResults('optimized', recordingFrames);
+            
+            debugLog(`Processed ${recordingFrames.length} frames with both algorithms`);
+        }
+
+        // Display results for a specific algorithm
+        function displayAlgorithmResults(algorithmType, frames) {
+            const resultsContainer = document.getElementById('results');
+            
+            const firstFrame = frames[0][algorithmType];
             const platform = firstFrame.platform;
             
-            // Create results card
+            // Calculate average quality for optimized algorithm
+            let avgQuality = 100; // Original is always 100%
+            if (algorithmType === 'optimized') {
+                avgQuality = frames.reduce((sum, frame) => sum + frame.optimized.quality.score, 0) / frames.length;
+            }
+            
             const resultCard = document.createElement('div');
-            resultCard.className = 'result-card optimized';
+            resultCard.className = `result-card ${algorithmType}`;
             resultCard.innerHTML = `
-                <h3>🔬 Research-Optimized PPG Results (${platform.toUpperCase()})</h3>
+                <div class="algorithm-badge ${algorithmType}">${algorithmType.toUpperCase()}</div>
+                <h3>${algorithmType.toUpperCase()} Algorithm Results (${platform.toUpperCase()})</h3>
                 
                 <div class="quality-metrics">
                     <div class="metric-item ${avgQuality >= 75 ? 'excellent' : avgQuality >= 50 ? 'good' : 'poor'}">
-                        <h4>Overall Quality</h4>
+                        <h4>Quality Score</h4>
                         <div style="font-size: 1.5rem; font-weight: bold;">${avgQuality.toFixed(1)}%</div>
                     </div>
                     
                     <div class="metric-item ${isCalibrated ? 'excellent' : 'bad'}">
-                        <h4>ZLO Calibration</h4>
+                        <h4>ZLO Applied</h4>
                         <div style="font-size: 1.2rem; font-weight: bold;">
-                            ${isCalibrated ? `✅ ${currentZLO.toFixed(2)}` : '❌ Not Applied'}
+                            ${algorithmType === 'optimized' && isCalibrated ? `Yes (${currentZLO.toFixed(2)})` : 'No'}
                         </div>
                     </div>
                     
                     <div class="metric-item good">
-                        <h4>Frames Captured</h4>
-                        <div style="font-size: 1.5rem; font-weight: bold;">${recordingFrames.length}</div>
+                        <h4>Frames</h4>
+                        <div style="font-size: 1.5rem; font-weight: bold;">${frames.length}</div>
                     </div>
                     
-                    <div class="metric-item ${gradeCounts.excellent > recordingFrames.length * 0.5 ? 'excellent' : 'good'}">
-                        <h4>Excellent Quality</h4>
+                    <div class="metric-item ${algorithmType === 'optimized' ? 'good' : 'poor'}">
+                        <h4>Assessment</h4>
                         <div style="font-size: 1.2rem; font-weight: bold;">
-                            ${gradeCounts.excellent}/${recordingFrames.length} 
-                            (${(gradeCounts.excellent/recordingFrames.length*100).toFixed(1)}%)
+                            ${algorithmType === 'optimized' ? 'Real Analysis' : 'Hardcoded'}
                         </div>
                     </div>
                 </div>
                 
                 <div style="margin-top: 20px;">
-                    <h4>📊 PPG Signal Array (First Frame)</h4>
+                    <h4>PPG Signal Array (First Frame)</h4>
                     <div style="background: white; padding: 15px; border-radius: 10px; margin-top: 10px;">
-                        <p><strong>Platform:</strong> ${platform.toUpperCase()} - ${platform === 'ios' ? 'Expected value-0-0 pattern' : 'Expected Y-U-V pattern'}</p>
                         <div style="margin: 10px 0; font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 5px;">
                             <strong>PPG Signals [0-14]:</strong><br>
                             ${firstFrame.ppgSignals.slice(0, 15).map((signal, i) => {
                                 const value = signal.toFixed(1);
                                 const channelType = i % 3 === 0 ? 'Y' : i % 3 === 1 ? 'U' : 'V';
-                                const roiIndex = Math.floor(i / 3);
                                 const highlight = platform === 'ios' && i % 3 !== 0 ? 'color: #999; opacity: 0.6;' : 'color: #000;';
-                                return `<span style="${highlight}" title="ROI${roiIndex}-${channelType}">${value}</span>`;
+                                return `<span style="${highlight}" title="${channelType}">${value}</span>`;
                             }).join(', ')}
                         </div>
                         <p style="font-size: 0.9rem; color: #666;">
                             ${platform === 'ios' ? 
-                                '📱 iOS Pattern: Only Y-channel values (every 3rd element), U/V channels remain 0' :
-                                '🤖 Android Pattern: All Y-U-V channels filled with processed values'
+                                'iOS Pattern: Only Y-channel values (every 3rd element), U/V channels remain 0' :
+                                'Android Pattern: All Y-U-V channels filled with processed values'
                             }
                         </p>
                     </div>
                 </div>
                 
-                <div style="margin-top: 20px;">
-                    <h4>🔍 Signal Quality Assessment</h4>
-                    <div style="background: white; padding: 15px; border-radius: 10px; margin-top: 10px;">
-                        <div class="quality-warning ${firstFrame.qualityWarning ? 'quality-bad' : 'quality-good'}">
-                            <strong>Quality:</strong> ${firstFrame.qualityWarning ? '⚠️ Warning - Poor Signal' : '✅ Good Signal Quality'}
-                        </div>
-                        <p style="margin-top: 10px;"><strong>Reason:</strong> ${firstFrame.qualityReason}</p>
-                        <div style="margin-top: 10px; font-size: 0.9rem;">
-                            ${platform === 'ios' ? 
-                                `<strong>iOS Metrics:</strong> Variance: ${firstFrame.metrics.avgVariance?.toFixed(2) || 'N/A'}, Range: ${firstFrame.metrics.intensityRange?.toFixed(1) || 'N/A'}, Avg: ${firstFrame.metrics.avgIntensity?.toFixed(1) || 'N/A'}` :
-                                `<strong>Android Metrics:</strong> Signal Quality: ${((firstFrame.metrics.avgSignalQuality || 0)*100).toFixed(1)}%, Variance: ${firstFrame.metrics.varY?.toFixed(1) || 'N/A'}, Range: ${firstFrame.metrics.intensityRange?.toFixed(1) || 'N/A'}`
-                            }
-                        </div>
-                    </div>
-                </div>
-                
-                <div style="margin-top: 20px;">
-                    <h4>📈 Input Signal Analysis</h4>
-                    <div style="background: white; padding: 15px; border-radius: 10px; margin-top: 10px;">
-                        <p><strong>Average RGB:</strong> 
-                           R=${firstFrame.rgb.r.toFixed(1)}, 
-                           G=${firstFrame.rgb.g.toFixed(1)}, 
-                           B=${firstFrame.rgb.b.toFixed(1)}</p>
-                        <p><strong>ZLO Correction Applied:</strong> ${isCalibrated ? `${currentZLO.toFixed(2)} offset` : 'None (uncalibrated)'}</p>
-                        <p style="font-size: 0.9rem; color: #666; margin-top: 10px;">
-                            <strong>Research Note:</strong> ZLO correction improves Ratio-of-Ratios (RoR) accuracy by up to 74% according to Xuan et al. 2023
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="controls" style="margin-top: 20px;">
-                    <button class="btn btn-primary" onclick="exportResearchData()">📄 Export Research Data</button>
-                    <button class="btn btn-secondary" onclick="showDetailedAnalysis()">📈 Detailed Analysis</button>
-                    <button class="btn btn-secondary" onclick="showFrameComparison()">🔄 Frame Comparison</button>
+                <div class="quality-warning ${firstFrame.qualityWarning ? 'quality-bad' : 'quality-good'}">
+                    <strong>Quality Assessment:</strong> ${firstFrame.qualityWarning ? 'Warning - Poor Signal' : 'Good Signal Quality'}<br>
+                    <small>Reason: ${firstFrame.qualityReason}</small>
                 </div>
             `;
             
             resultsContainer.appendChild(resultCard);
-            
-            // Add detailed frame analysis if multiple frames
-            if (recordingFrames.length > 1) {
-                addFrameAnalysisCard(resultsContainer);
-            }
-            
-            debugLog(`✅ Processed ${recordingFrames.length} frames with research-optimized algorithm`);
-            debugLog(`📊 PPG signals: [${firstFrame.ppgSignals.slice(0, 6).map(s => s.toFixed(1)).join(', ')}]`);
-            debugLog(`📊 Average quality: ${avgQuality.toFixed(1)}% (${isCalibrated ? 'ZLO calibrated' : 'uncalibrated'})`);
-        }
-
-        // Add frame analysis card for multiple frames
-        function addFrameAnalysisCard(container) {
-            const frameCard = document.createElement('div');
-            frameCard.className = 'result-card';
-            
-            // Show first, middle, and last frames
-            const indices = [0, Math.floor(recordingFrames.length / 2), recordingFrames.length - 1];
-            const frameLabels = ['Start', 'Middle', 'End'];
-            
-            let frameAnalysisHTML = '<h3>📊 Frame-by-Frame Analysis</h3>';
-            
-            indices.forEach((index, i) => {
-                if (index < recordingFrames.length) {
-                    const frame = recordingFrames[index];
-                    frameAnalysisHTML += `
-                        <div style="background: white; padding: 15px; border-radius: 10px; margin: 10px 0;">
-                            <h4>${frameLabels[i]} Frame (${index + 1}/${recordingFrames.length})</h4>
-                            <div style="font-family: monospace; background: #f5f5f5; padding: 8px; border-radius: 4px; margin: 8px 0;">
-                                PPG [0-8]: ${frame.ppgSignals.slice(0, 9).map(s => s.toFixed(1)).join(', ')}
-                            </div>
-                            <p style="font-size: 0.9rem;">
-                                Quality: ${frame.qualityWarning ? '⚠️' : '✅'} ${frame.quality.score.toFixed(1)}% - ${frame.qualityReason}
-                            </p>
-                        </div>
-                    `;
-                }
-            });
-            
-            frameCard.innerHTML = frameAnalysisHTML;
-            container.appendChild(frameCard);
-        }
-
-        // Show detailed analysis
-        function showDetailedAnalysis() {
-            if (recordingFrames.length === 0) return;
-            
-            const modal = document.createElement('div');
-            modal.style.cssText = `
-                position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-                background: rgba(0,0,0,0.8); z-index: 1000; 
-                display: flex; align-items: center; justify-content: center; 
-                padding: 20px; overflow-y: auto;
-            `;
-            
-            const content = document.createElement('div');
-            content.style.cssText = `
-                background: white; border-radius: 15px; padding: 30px; 
-                max-width: 800px; max-height: 80vh; overflow-y: auto;
-            `;
-            
-            // Calculate statistics across all frames
-            const allSignals = recordingFrames.map(f => f.ppgSignals.slice(0, 9));
-            const avgSignals = new Array(9).fill(0);
-            
-            for (let i = 0; i < 9; i++) {
-                avgSignals[i] = allSignals.reduce((sum, signals) => sum + signals[i], 0) / allSignals.length;
-            }
-            
-            content.innerHTML = `
-                <h3>📈 Detailed PPG Signal Analysis</h3>
-                
-                <h4>📊 Average Signal Values (${recordingFrames.length} frames)</h4>
-                <div style="font-family: monospace; background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                    ${avgSignals.map((avg, i) => {
-                        const channelType = i % 3 === 0 ? 'Y' : i % 3 === 1 ? 'U' : 'V';
-                        const roiIndex = Math.floor(i / 3);
-                        return `ROI${roiIndex}-${channelType}: ${avg.toFixed(2)}`;
-                    }).join('<br>')}
-                </div>
-                
-                <h4>🔍 Signal Consistency Analysis</h4>
-                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                    ${avgSignals.map((avg, i) => {
-                        const variance = allSignals.reduce((sum, signals) => sum + Math.pow(signals[i] - avg, 2), 0) / allSignals.length;
-                        const stdDev = Math.sqrt(variance);
-                        const stability = stdDev < 5 ? '✅ Stable' : stdDev < 15 ? '⚠️ Moderate' : '❌ Unstable';
-                        const channelType = i % 3 === 0 ? 'Y' : i % 3 === 1 ? 'U' : 'V';
-                        const roiIndex = Math.floor(i / 3);
-                        return `ROI${roiIndex}-${channelType}: σ=${stdDev.toFixed(2)} ${stability}`;
-                    }).join('<br>')}
-                </div>
-                
-                <h4>⚗️ Research Validation</h4>
-                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                    <p><strong>Algorithm:</strong> Research-optimized with ${isCalibrated ? 'ZLO calibration' : 'no calibration'}</p>
-                    <p><strong>Expected Accuracy:</strong> ${isCalibrated ? '+74% improvement' : 'Baseline (consider calibration)'}</p>
-                    <p><strong>Pattern Validation:</strong> ${recordingFrames[0].platform === 'ios' ? 'iOS value-0-0 pattern confirmed' : 'Android Y-U-V pattern confirmed'}</p>
-                </div>
-                
-                <button onclick="this.parentElement.parentElement.remove()" 
-                        style="background: #007cff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer;">
-                    Close Analysis
-                </button>
-            `;
-            
-            modal.appendChild(content);
-            document.body.appendChild(modal);
-        }
-
-        // Show frame comparison
-        function showFrameComparison() {
-            if (recordingFrames.length < 2) {
-                alert('Need at least 2 frames for comparison');
-                return;
-            }
-            
-            const modal = document.createElement('div');
-            modal.style.cssText = `
-                position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-                background: rgba(0,0,0,0.8); z-index: 1000; 
-                display: flex; align-items: center; justify-content: center; 
-                padding: 20px; overflow-y: auto;
-            `;
-            
-            const content = document.createElement('div');
-            content.style.cssText = `
-                background: white; border-radius: 15px; padding: 30px; 
-                max-width: 1000px; max-height: 80vh; overflow-y: auto;
-            `;
-            
-            const frame1 = recordingFrames[0];
-            const frameN = recordingFrames[recordingFrames.length - 1];
-            
-            content.innerHTML = `
-                <h3>🔄 Frame Comparison Analysis</h3>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
-                    <div>
-                        <h4>📍 First Frame</h4>
-                        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 5px;">
-                            ${frame1.ppgSignals.slice(0, 9).map((s, i) => {
-                                const channelType = i % 3 === 0 ? 'Y' : i % 3 === 1 ? 'U' : 'V';
-                                return `${channelType}: ${s.toFixed(1)}`;
-                            }).join('<br>')}
-                        </div>
-                        <p>Quality: ${frame1.quality.score.toFixed(1)}%</p>
-                    </div>
-                    
-                    <div>
-                        <h4>📍 Last Frame</h4>
-                        <div style="font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 5px;">
-                            ${frameN.ppgSignals.slice(0, 9).map((s, i) => {
-                                const channelType = i % 3 === 0 ? 'Y' : i % 3 === 1 ? 'U' : 'V';
-                                return `${channelType}: ${s.toFixed(1)}`;
-                            }).join('<br>')}
-                        </div>
-                        <p>Quality: ${frameN.quality.score.toFixed(1)}%</p>
-                    </div>
-                </div>
-                
-                <h4>📊 Signal Variation Analysis</h4>
-                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                    ${frame1.ppgSignals.slice(0, 9).map((s1, i) => {
-                        const s2 = frameN.ppgSignals[i];
-                        const diff = Math.abs(s2 - s1);
-                        const percentChange = s1 > 0 ? ((s2 - s1) / s1 * 100) : 0;
-                        const channelType = i % 3 === 0 ? 'Y' : i % 3 === 1 ? 'U' : 'V';
-                        const roiIndex = Math.floor(i / 3);
-                        return `ROI${roiIndex}-${channelType}: Δ${diff.toFixed(1)} (${percentChange.toFixed(1)}%)`;
-                    }).join('<br>')}
-                </div>
-                
-                <button onclick="this.parentElement.parentElement.remove()" 
-                        style="background: #007cff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; cursor: pointer;">
-                    Close Comparison
-                </button>
-            `;
-            
-            modal.appendChild(content);
-            document.body.appendChild(modal);
-        }
-
-        // Export research data
-        function exportResearchData() {
-            if (recordingFrames.length === 0) return;
-            
-            const exportData = {
-                metadata: {
-                    timestamp: new Date().toISOString(),
-                    algorithm: 'research_optimized',
-                    calibrated: isCalibrated,
-                    zlo_value: currentZLO,
-                    platform: document.getElementById('platform-select').value,
-                    frame_count: recordingFrames.length,
-                    research_reference: 'Xuan et al. 2023 - A calibration method for smartphone camera photoplethysmography'
-                },
-                frames: recordingFrames,
-                quality_summary: {
-                    average_quality: recordingFrames.reduce((sum, f) => sum + f.quality.score, 0) / recordingFrames.length,
-                    quality_distribution: recordingFrames.reduce((acc, f) => {
-                        acc[f.quality.grade] = (acc[f.quality.grade] || 0) + 1;
-                        return acc;
-                    }, {})
-                }
-            };
-            
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `research_ppg_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            debugLog(`📄 Exported research data: ${recordingFrames.length} frames`);
-        }
-
-        // Stop camera
-        function stopCamera() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-                videoTrack = null;
-            }
-            
-            document.getElementById('start-camera-btn').style.display = 'inline-block';
-            document.getElementById('stop-camera-btn').style.display = 'none';
-            document.getElementById('record-btn').disabled = true;
-            document.getElementById('flash-btn').disabled = true;
-            
-            debugLog('📹 Camera stopped');
-        }
-
-        // Flash control (fixed synchronization)
-        async function toggleFlash() {
-            if (!videoTrack) {
-                debugLog('⚠️ No video track available for flash control');
-                return;
-            }
-            
-            try {
-                debugLog(`💡 Toggling flash: currently ${flashEnabled ? 'ON' : 'OFF'}`);
-                
-                const constraints = {
-                    advanced: [{ torch: !flashEnabled }]
-                };
-                
-                await videoTrack.applyConstraints(constraints);
-                
-                // Update state and UI
-                flashEnabled = !flashEnabled;
-                const flashBtn = document.getElementById('flash-btn');
-                flashBtn.textContent = flashEnabled ? '🔦 Flash On' : '💡 Flash Off';
-                
-                debugLog(`💡 Flash ${flashEnabled ? 'enabled' : 'disabled'} successfully`);
-                
-            } catch (error) {
-                debugLog(`⚠️ Flash control failed: ${error.message}`);
-                // Reset button state on failure
-                const flashBtn = document.getElementById('flash-btn');
-                flashBtn.textContent = flashEnabled ? '🔦 Flash On' : '💡 Flash Off';
-            }
         }
 
         // Error handling
         function showError(message) {
             alert('Error: ' + message);
-            debugLog(`❌ Error: ${message}`);
+            debugLog(`Error: ${message}`);
         }
 
         // Initialize
         updateCalibrationStatus();
-        debugLog('🔬 Research-based PPG Tool initialized');
-        debugLog('📚 Based on: Xuan et al. 2023 - Smartphone camera photoplethysmography calibration');
+        debugLog('Research-based PPG Tool initialized');
     </script>
 </body>
 </html>
