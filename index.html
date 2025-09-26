@@ -19,6 +19,8 @@
         #signalPlot { width: 100%; height: 200px; border: 1px solid #ccc; }
         .tab button { background-color: #f1f1f1; border: 1px solid #ccc; cursor: pointer; }
         .tab button.active { background-color: #ccc; }
+        input[type="range"] { width: 60%; }
+        .slider-value { margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -28,8 +30,8 @@
     <div class="section">
         <h3>Device Configuration</h3>
         <div class="tab">
-            <button class="tablinks active" onclick="selectPlatform('Android')">Android</button>
-            <button class="tablinks" onclick="selectPlatform('iOS')">iOS</button>
+            <button class="tablinks active" onclick="selectPlatform(event, 'Android')">Android</button>
+            <button class="tablinks" onclick="selectPlatform(event, 'iOS')">iOS</button>
         </div>
     </div>
 
@@ -44,31 +46,28 @@
         </div>
         <div class="config-group">
             <label>ROI X Position:</label>
-            <input type="number" id="roiX" value="25" min="0" max="100" step="1" onchange="updateROIOverlay()"> %
+            <input type="range" id="roiX" min="0" max="100" value="25" oninput="updateROIValue('roiXValue', this.value); updateROIOverlay()">
+            <span id="roiXValue" class="slider-value">25%</span>
         </div>
         <div class="config-group">
             <label>ROI Y Position:</label>
-            <input type="number" id="roiY" value="25" min="0" max="100" step="1" onchange="updateROIOverlay()"> %
+            <input type="range" id="roiY" min="0" max="100" value="25" oninput="updateROIValue('roiYValue', this.value); updateROIOverlay()">
+            <span id="roiYValue" class="slider-value">25%</span>
         </div>
         <div class="config-group">
             <label>ROI Width:</label>
-            <input type="number" id="roiWidth" value="50" min="10" max="100" step="1" onchange="updateROIOverlay()"> %
+            <input type="range" id="roiWidth" min="10" max="100" value="50" oninput="updateROIValue('roiWidthValue', this.value); updateROIOverlay()">
+            <span id="roiWidthValue" class="slider-value">50%</span>
         </div>
         <div class="config-group">
             <label>ROI Height:</label>
-            <input type="number" id="roiHeight" value="50" min="10" max="100" step="1" onchange="updateROIOverlay()"> %
+            <input type="range" id="roiHeight" min="10" max="100" value="50" oninput="updateROIValue('roiHeightValue', this.value); updateROIOverlay()">
+            <span id="roiHeightValue" class="slider-value">50%</span>
         </div>
         <div class="config-group">
             <label>Recording Duration:</label>
-            <input type="number" id="duration" value="10" min="5" max="60"> s
-        </div>
-    </div>
-
-    <div class="section">
-        <h3>Camera Preview</h3>
-        <div id="videoContainer">
-            <video id="video" autoplay muted playsinline></video>
-            <div id="roiOverlay"></div>
+            <input type="range" id="duration" min="5" max="60" value="10" oninput="updateROIValue('durationValue', this.value)">
+            <span id="durationValue" class="slider-value">10s</span>
         </div>
     </div>
 
@@ -93,8 +92,6 @@
                 <span id="dcComponent">--</span>
             </div>
         </div>
-        <h4>PPG Signal Waveform</h4>
-        <canvas id="signalPlot"></canvas>
     </div>
 
     <div class="section">
@@ -117,17 +114,14 @@
         <div id="debugInfo"></div>
     </div>
 
+    <video id="video" autoplay muted playsinline style="display: none;"></video>
     <canvas id="canvas" style="display: none;"></canvas>
 
     <script>
         // DOM Elements
         const video = document.getElementById('video');
-        const videoContainer = document.getElementById('videoContainer');
-        const roiOverlay = document.getElementById('roiOverlay');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const plotCanvas = document.getElementById('signalPlot');
-        const plotCtx = plotCanvas.getContext('2d');
         const startCameraBtn = document.getElementById('startCamera');
         const startMonitorBtn = document.getElementById('startSignalMonitor');
         const startRecordBtn = document.getElementById('startRecording');
@@ -149,34 +143,16 @@
         const roiWidthEl = document.getElementById('roiWidth');
         const roiHeightEl = document.getElementById('roiHeight');
         const durationEl = document.getElementById('duration');
-        const tabButtons = document.querySelectorAll('.tablinks');
 
         // State
-        let platform = 'Android';
         let zlo = 0;
         let signal = [];
         let startTime = 0;
-        let recordingStartTime = 0;
         let samplingTimer = null;
-        let recordingTimer = null;
         let isMonitoring = false;
         let isRecording = false;
         const samplingRate = 30; // Hz
         const intervalMs = 1000 / samplingRate;
-        let torchTrack = null;
-
-        // Platform selection
-        function selectPlatform(selected) {
-            platform = selected;
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            monitorStatusEl.textContent = `${selected} selected - click Start Camera`;
-            if (torchTrack && platform === 'Android') {
-                torchTrack.applyConstraints({ advanced: [{ torch: true }] }).catch(e => logDebug('Torch error: ' + e.message));
-            } else if (torchTrack) {
-                torchTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(e => logDebug('Torch error: ' + e.message));
-            }
-        }
 
         // Debug toggle
         toggleDebugBtn.onclick = () => {
@@ -187,23 +163,9 @@
             debugEl.textContent += new Date().toISOString() + ': ' + msg + '\n';
         }
 
-        // Update ROI Overlay
-        function updateROIOverlay() {
-            if (!video.videoWidth) return;
-            const vidRect = video.getBoundingClientRect();
-            const roiX = (parseFloat(roiXEl.value) / 100) * vidRect.width;
-            const roiY = (parseFloat(roiYEl.value) / 100) * vidRect.height;
-            const roiW = (parseFloat(roiWidthEl.value) / 100) * vidRect.width;
-            const roiH = (parseFloat(roiHeightEl.value) / 100) * vidRect.height;
-            roiOverlay.style.left = `${roiX}px`;
-            roiOverlay.style.top = `${roiY}px`;
-            roiOverlay.style.width = `${roiW}px`;
-            roiOverlay.style.height = `${roiH}px`;
-            if (roiTypeEl.value === 'Circular') {
-                roiOverlay.style.borderRadius = '50%';
-            } else {
-                roiOverlay.style.borderRadius = '0';
-            }
+        // Update slider value display
+        function updateROIValue(id, value) {
+            document.getElementById(id).textContent = id.includes('duration') ? value + 's' : value + '%';
         }
 
         // Start Camera
@@ -213,26 +175,12 @@
                     video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
                 });
                 video.srcObject = stream;
-                video.onloadedmetadata = async () => {
-                    video.play();
+                video.onloadedmetadata = () => {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    plotCanvas.width = plotCanvas.clientWidth;
-                    plotCanvas.height = 200;
                     monitorStatusEl.textContent = 'Camera started. Calibrate ZLO by covering camera fully, then start monitor.';
                     startMonitorBtn.disabled = false;
-                    updateROIOverlay();
                     logDebug('Camera initialized: ' + canvas.width + 'x' + canvas.height);
-
-                    torchTrack = stream.getVideoTracks()[0];
-                    if (platform === 'Android') {
-                        try {
-                            await torchTrack.applyConstraints({ advanced: [{ torch: true }] });
-                            logDebug('Torch enabled');
-                        } catch (e) {
-                            logDebug('Torch not supported: ' + e.message);
-                        }
-                    }
                 };
             } catch (err) {
                 alert('Camera access denied: ' + err.message);
@@ -240,7 +188,7 @@
             }
         };
 
-        // Sample ROI (green channel average) - using ROI for sampling
+        // Sample ROI (green channel average)
         function getROIAverage() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -286,32 +234,11 @@
             const time = (Date.now() - startTime) / 1000;
             const value = rawValue - zlo; // Respect ZLO
             signal.push({ time, value });
-            // Limit signal to last 60 seconds to prevent memory issues
-            if (signal.length > samplingRate * 60) {
-                signal.shift();
-            }
             updateSQM();
-            plotSignal();
             logDebug(`Sample: t=${time.toFixed(3)}, raw=${rawValue.toFixed(1)}, ppg=${value.toFixed(1)}`);
-        }
-
-        // Plot signal
-        function plotSignal() {
-            plotCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
-            if (signal.length < 2) return;
-            const values = signal.map(s => s.value);
-            const minV = Math.min(...values);
-            const maxV = Math.max(...values);
-            const range = maxV - minV || 1;
-            plotCtx.beginPath();
-            plotCtx.strokeStyle = 'blue';
-            plotCtx.lineWidth = 2;
-            const step = plotCanvas.width / (signal.length - 1);
-            plotCtx.moveTo(0, plotCanvas.height - ((values[0] - minV) / range) * plotCanvas.height);
-            for (let i = 1; i < signal.length; i++) {
-                plotCtx.lineTo(i * step, plotCanvas.height - ((values[i] - minV) / range) * plotCanvas.height);
+            if (isRecording && time >= parseInt(durationEl.value)) {
+                stopRecording();
             }
-            plotCtx.stroke();
         }
 
         // Simple DFT (FFT approximation for power spectrum)
@@ -388,21 +315,19 @@
         // Start Recording
         startRecordBtn.onclick = () => {
             if (!isMonitoring || isRecording) return;
+            signal = []; // Reset for new recording
+            startTime = Date.now();
             isRecording = true;
-            recordingStartTime = Date.now();
             recordingEl.style.display = 'block';
             downloadBtn.disabled = true;
-            const durationMs = parseInt(durationEl.value) * 1000;
-            recordingTimer = setTimeout(stopRecording, durationMs);
             logDebug('Recording started');
         };
 
         function stopRecording() {
-            clearTimeout(recordingTimer);
             isRecording = false;
             recordingEl.style.display = 'none';
             downloadBtn.disabled = false;
-            logDebug('Recording complete');
+            logDebug('Recording complete: ' + signal.length + ' samples');
         }
 
         // Stop
@@ -420,13 +345,19 @@
             logDebug('Stopped');
         }
 
-        // Calibrate ZLO (cover camera fully for 2s, using ROI)
+        // Calibrate ZLO (cover camera fully for 2s)
         calibrateBtn.onclick = async () => {
             if (!video.srcObject) {
                 alert('Start camera first.');
                 return;
             }
             calibrateBtn.disabled = true;
+            let originalTorch = false;
+            if (platform === 'Android' && torchTrack) {
+                originalTorch = true;
+                await torchTrack.applyConstraints({ advanced: [{ torch: false }] });
+                logDebug('Torch disabled for ZLO');
+            }
             const calStart = Date.now();
             let calSum = 0;
             let calCount = 0;
@@ -440,6 +371,10 @@
                     alert('ZLO calibrated: ' + zlo.toFixed(2));
                     calibrateBtn.disabled = false;
                     logDebug('ZLO: ' + zlo.toFixed(2));
+                    if (originalTorch) {
+                        torchTrack.applyConstraints({ advanced: [{ torch: true }] });
+                        logDebug('Torch re-enabled after ZLO');
+                    }
                 }
             }, 100);
         };
@@ -456,41 +391,37 @@
             snrEl.textContent = '--';
             strengthEl.textContent = '--';
             dcEl.textContent = '--';
-            monitorStatusEl.textContent = `${platform} selected - click Start Camera`;
-            plotCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
+            monitorStatusEl.textContent = 'Reset. Click Start Camera.';
             logDebug('Reset');
-            if (torchTrack) {
-                torchTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
-            }
         };
 
-        // Download PPG (CSV: time, ppg_signal) - only the recorded segment
+        // Download PPG as JSON matching attached format
         downloadBtn.onclick = () => {
-            if (signal.length === 0 || recordingStartTime === 0) {
-                alert('No recording data to download.');
+            if (signal.length === 0) {
+                alert('No data to download.');
                 return;
             }
-            const recordStart = (recordingStartTime - startTime) / 1000;
-            const recordEnd = recordStart + parseInt(durationEl.value);
-            const recorded = signal.filter(s => s.time >= recordStart && s.time <= recordEnd);
-            if (recorded.length === 0) {
-                alert('No data in recording period.');
-                return;
-            }
-            let csv = 'Time(s),PPG\n';
-            recorded.forEach(s => csv += (s.time - recordStart).toFixed(3) + ',' + s.value.toFixed(2) + '\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
+            const ppgSignals = signal.map(s => ({
+                Timestamp: Math.floor(startTime * 1000 + s.time * 1000000), // Approximate big timestamp
+                Signals: [s.value].concat(new Array(29).fill(0)), // Single value + 29 zeros to match length 30
+                QualityWarning: false
+            }));
+            const data = {
+                PhoneModel: platform + '|Unknown Device',
+                PhoneOSVersion: 'Unknown',
+                InfoSupportedHardwareLevel: 'True',
+                PpgSignals: ppgSignals,
+                Calibration: null
+            };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'ppg_signal.csv';
+            a.download = 'ppg_data.json';
             a.click();
             URL.revokeObjectURL(url);
-            logDebug('Downloaded CSV with ' + recorded.length + ' samples');
+            logDebug('Downloaded JSON with ' + signal.length + ' entries');
         };
-
-        // Update ROI on resize
-        window.addEventListener('resize', updateROIOverlay);
     </script>
 </body>
 </html>
