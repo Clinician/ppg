@@ -634,6 +634,8 @@
                 
                 this.isRecording = false;
                 this.isCalibrating = false;
+                this.isCameraActive = false;
+                this.isProcessing = false;
                 this.recordingData = [];
                 this.signalBuffer = [];
                 this.timeBuffer = [];
@@ -650,9 +652,18 @@
                 this.heartRate = 0;
                 this.snr = 0;
                 
+                // SQM timeout handling
+                this.sqmStartTime = null;
+                this.sqmTimeoutDuration = 30000; // 30 seconds
+                this.sqmTimeoutTimer = null;
+                
                 this.initializeEventListeners();
                 this.initializeCanvases();
                 this.startDebugLog();
+                
+                // Initialize with proper idle state
+                this.updateStatus('Select device type to begin', 'info');
+                document.getElementById('qualityText').textContent = 'Camera not started';
             }
             
             initializeEventListeners() {
@@ -723,13 +734,54 @@
                     
                     this.video.addEventListener('loadedmetadata', () => {
                         this.setupProcessing();
-                        this.updateStatus('Camera started. Position finger over rear camera with flash.', 'success');
+                        this.isCameraActive = true;
+                        this.updateStatus('Camera started. Ready for ZLO calibration (optional) or direct PPG monitoring.', 'success');
                         document.getElementById('startCameraBtn').disabled = true;
+                        document.getElementById('qualityText').textContent = 'Ready for finger placement';
+                        
+                        // Start SQM after camera is ready
+                        this.startSQM();
                     });
                     
                 } catch (error) {
                     this.debugLog(`Camera error: ${error.message}`);
                     this.updateStatus('Camera access denied or unavailable', 'error');
+                }
+            }
+            
+            startSQM() {
+                if (!this.isCameraActive) {
+                    this.debugLog('Cannot start SQM - camera not active');
+                    return;
+                }
+                
+                this.sqmStartTime = performance.now();
+                this.isProcessing = true;
+                
+                // Start SQM timeout timer
+                this.sqmTimeoutTimer = setTimeout(() => {
+                    this.handleSQMTimeout();
+                }, this.sqmTimeoutDuration);
+                
+                this.updateStatus('Signal Quality Monitoring started. Place finger over rear camera with flash.', 'info');
+                this.debugLog('SQM started with 30-second timeout');
+                
+                // Update quality text to show we're monitoring
+                document.getElementById('qualityText').textContent = 'Monitoring...';
+            }
+            
+            handleSQMTimeout() {
+                this.debugLog('SQM timeout reached after 30 seconds');
+                
+                if (this.signalQuality < this.qualityThreshold) {
+                    this.updateStatus('Signal quality timeout. You can record anyway or reset to try again.', 'warning');
+                    
+                    // Enable recording despite poor quality, but warn user
+                    document.getElementById('startRecordingBtn').disabled = false;
+                    document.getElementById('startRecordingBtn').textContent = '⚠️ Record Anyway';
+                    document.getElementById('startRecordingBtn').style.background = '#f59e0b';
+                } else {
+                    this.updateStatus('Good signal achieved within timeout period.', 'success');
                 }
             }
             
@@ -854,8 +906,11 @@
             }
             
             processingLoop() {
-                if (!this.video.paused && !this.video.ended && this.stream) {
+                if (!this.video.paused && !this.video.ended && this.stream && this.isCameraActive && this.isProcessing) {
                     this.processFrame();
+                    requestAnimationFrame(() => this.processingLoop());
+                } else if (this.isCameraActive && this.isProcessing) {
+                    // Keep trying to process if camera is active
                     requestAnimationFrame(() => this.processingLoop());
                 }
             }
@@ -863,35 +918,38 @@
             processFrame() {
                 // Skip processing during calibration to avoid interference
                 if (this.isCalibrating) {
-                    requestAnimationFrame(() => this.processingLoop());
                     return;
                 }
                 
-                // Draw video frame to canvas
-                this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
-                
-                // Extract ROI
-                const roiData = this.extractROI();
-                
-                // Calculate PPG signal
-                const signal = this.calculatePPGSignal(roiData);
-                
-                // Apply ZLO correction
-                const correctedSignal = this.applyZLOCorrection(signal);
-                
-                // Update signal buffer
-                this.updateSignalBuffer(correctedSignal);
-                
-                // Assess signal quality
-                this.assessSignalQuality();
-                
-                // Update displays
-                this.updatePPGDisplay();
-                this.updateMetrics();
-                this.updateROIDisplay();
-                
-                // Check recording readiness
-                this.checkRecordingReadiness();
+                try {
+                    // Draw video frame to canvas
+                    this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+                    
+                    // Extract ROI
+                    const roiData = this.extractROI();
+                    
+                    // Calculate PPG signal
+                    const signal = this.calculatePPGSignal(roiData);
+                    
+                    // Apply ZLO correction
+                    const correctedSignal = this.applyZLOCorrection(signal);
+                    
+                    // Update signal buffer
+                    this.updateSignalBuffer(correctedSignal);
+                    
+                    // Assess signal quality
+                    this.assessSignalQuality();
+                    
+                    // Update displays
+                    this.updatePPGDisplay();
+                    this.updateMetrics();
+                    this.updateROIDisplay();
+                    
+                    // Check recording readiness
+                    this.checkRecordingReadiness();
+                } catch (error) {
+                    this.debugLog(`Processing error: ${error.message}`);
+                }
             }
             
             extractROI() {
@@ -990,29 +1048,77 @@
                     return;
                 }
                 
-                // Calculate signal-to-noise ratio
                 const signal = this.signalBuffer.slice(-60); // Last 2 seconds
                 const mean = signal.reduce((a, b) => a + b, 0) / signal.length;
                 const variance = signal.reduce((sum, val) => sum + (val - mean) ** 2, 0) / signal.length;
                 const std = Math.sqrt(variance);
                 
-                // Calculate AC/DC ratio (important for PPG quality)
-                const ac = std;
+                // For PPG, we need:
+                // 1. Adequate DC component (finger covering camera with flash)
+                // 2. Reasonable AC component (heartbeat variations)
+                // 3. Good signal stability
+                // 4. Signal in expected range for tissue absorption
+                
                 const dc = mean;
+                const ac = std;
                 const acDcRatio = dc > 0 ? ac / dc : 0;
                 
-                // SNR calculation
-                this.snr = dc > 0 ? 20 * Math.log10(ac / (std * 0.1 + 0.01)) : 0;
+                // PPG Quality Assessment:
                 
-                // Quality score based on multiple factors
-                const dcQuality = Math.min(dc / 100, 1); // DC component strength
-                const acQuality = Math.min(acDcRatio * 100, 1); // AC/DC ratio
-                const snrQuality = Math.min(Math.max(this.snr / 20, 0), 1); // SNR quality
+                // 1. DC Component Quality - finger should block significant light
+                // For good PPG, DC should be moderate (not too bright = no finger, not too dark = no flash)
+                // Optimal range is roughly 80-200 for 8-bit values
+                let dcQuality = 0;
+                if (dc >= 80 && dc <= 200) {
+                    dcQuality = 1.0; // Optimal range
+                } else if (dc >= 50 && dc <= 250) {
+                    dcQuality = 0.7; // Acceptable range
+                } else if (dc >= 30 && dc <= 255) {
+                    dcQuality = 0.3; // Poor but usable
+                } else {
+                    dcQuality = 0; // Too bright (no finger) or too dark (no flash/bad contact)
+                }
+                
+                // 2. AC/DC Ratio Quality - should show clear pulsatile variations
+                // Good PPG typically has AC/DC ratio of 0.01-0.05 (1-5%)
+                let acDcQuality = 0;
+                if (acDcRatio >= 0.01 && acDcRatio <= 0.05) {
+                    acDcQuality = 1.0; // Excellent pulsatile signal
+                } else if (acDcRatio >= 0.005 && acDcRatio <= 0.08) {
+                    acDcQuality = 0.7; // Good signal
+                } else if (acDcRatio >= 0.002 && acDcRatio <= 0.1) {
+                    acDcQuality = 0.3; // Weak but detectable
+                } else {
+                    acDcQuality = 0; // No clear pulsatile signal
+                }
+                
+                // 3. Signal Stability Quality
                 const stabilityQuality = this.calculateStabilityQuality();
                 
-                this.signalQuality = (dcQuality + acQuality + snrQuality + stabilityQuality) / 4;
+                // 4. SNR Quality
+                this.snr = ac > 0 ? 20 * Math.log10(dc / (ac * 0.1 + 0.01)) : 0;
+                let snrQuality = Math.min(Math.max((this.snr - 10) / 20, 0), 1); // 10-30 dB range
                 
-                this.debugLog(`Quality Assessment - DC: ${dc.toFixed(2)}, AC/DC: ${acDcRatio.toFixed(4)}, SNR: ${this.snr.toFixed(2)}dB, Overall: ${(this.signalQuality * 100).toFixed(1)}%`);
+                // Combined quality score with weights appropriate for PPG
+                this.signalQuality = (
+                    dcQuality * 0.4 +        // 40% - proper finger placement
+                    acDcQuality * 0.3 +      // 30% - clear pulsatile signal
+                    stabilityQuality * 0.2 + // 20% - signal stability
+                    snrQuality * 0.1         // 10% - signal-to-noise ratio
+                );
+                
+                // Additional penalty for obviously wrong conditions
+                if (dc > 240) {
+                    // Too bright - likely no finger covering camera
+                    this.signalQuality *= 0.1;
+                    this.debugLog(`Signal too bright (${dc.toFixed(1)}) - finger not covering camera`);
+                } else if (dc < 20) {
+                    // Too dark - likely no flash or very poor contact
+                    this.signalQuality *= 0.2;
+                    this.debugLog(`Signal too dark (${dc.toFixed(1)}) - check flash and finger contact`);
+                }
+                
+                this.debugLog(`PPG Quality Assessment - DC: ${dc.toFixed(1)}, AC/DC: ${(acDcRatio*100).toFixed(2)}%, Stability: ${(stabilityQuality*100).toFixed(1)}%, SNR: ${this.snr.toFixed(1)}dB, Overall: ${(this.signalQuality * 100).toFixed(1)}%`);
             }
             
             calculateStabilityQuality() {
