@@ -596,6 +596,7 @@
                 <button class="btn btn-primary" id="startRecordingBtn" disabled>🔴 Start Recording</button>
                 <button class="btn btn-danger" id="stopRecordingBtn" disabled>⏹️ Stop</button>
                 <button class="btn btn-secondary" id="calibrateBtn">⚙️ Calibrate ZLO</button>
+                <button class="btn btn-secondary" id="resetBtn">🔄 Reset</button>
             </div>
             
             <div class="recording-indicator" id="recordingIndicator">
@@ -664,6 +665,7 @@
                 document.getElementById('startRecordingBtn').addEventListener('click', () => this.startRecording());
                 document.getElementById('stopRecordingBtn').addEventListener('click', () => this.stopRecording());
                 document.getElementById('calibrateBtn').addEventListener('click', () => this.calibrateZLO());
+                document.getElementById('resetBtn').addEventListener('click', () => this.resetSystem());
                 
                 // ROI controls
                 document.getElementById('rectangleRoi').addEventListener('click', () => this.setRoiType('rectangle'));
@@ -786,14 +788,85 @@
                 }
             }
             
+            
+            resetSystem() {
+                this.debugLog('System reset initiated');
+                
+                // Stop any ongoing processes
+                this.isRecording = false;
+                this.isCalibrating = false;
+                
+                // Clear timers
+                if (this.recordingTimer) clearTimeout(this.recordingTimer);
+                if (this.progressInterval) clearInterval(this.progressInterval);
+                
+                // Clear buffers and data
+                this.recordingData = [];
+                this.signalBuffer = [];
+                this.timeBuffer = [];
+                this.signalQuality = 0;
+                this.heartRate = 0;
+                this.snr = 0;
+                
+                // Reset ZLO calibration
+                this.zlo = { red: 0, green: 0, blue: 0 };
+                
+                // Stop camera if running
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                    this.video.srcObject = null;
+                }
+                
+                // Reset UI elements
+                document.getElementById('startCameraBtn').disabled = false;
+                document.getElementById('startCameraBtn').textContent = '📷 Start Camera';
+                document.getElementById('startRecordingBtn').disabled = true;
+                document.getElementById('stopRecordingBtn').disabled = true;
+                document.getElementById('calibrateBtn').disabled = false;
+                document.getElementById('calibrateBtn').textContent = '⚙️ Calibrate ZLO';
+                document.getElementById('recordingIndicator').classList.remove('active');
+                document.getElementById('progressFill').style.width = '0%';
+                document.getElementById('flashIndicator').classList.remove('active');
+                document.getElementById('downloadSection').style.display = 'none';
+                
+                // Reset quality display
+                document.getElementById('qualityBar').style.width = '0%';
+                document.getElementById('qualityText').textContent = 'System Reset';
+                
+                // Reset metrics
+                document.getElementById('heartRate').textContent = '--';
+                document.getElementById('snrValue').textContent = '--';
+                document.getElementById('signalStrength').textContent = '--';
+                document.getElementById('dcComponent').textContent = '--';
+                
+                // Clear PPG canvas
+                this.ppgCtx.clearRect(0, 0, this.ppgCanvas.width, this.ppgCanvas.height);
+                this.drawPPGGrid();
+                
+                // Reset device selection
+                document.querySelectorAll('.device-btn').forEach(btn => btn.classList.remove('active'));
+                this.deviceType = null;
+                
+                this.updateStatus('System reset complete. Please select device type and start camera.', 'info');
+                
+                this.debugLog('System reset completed successfully');
+            }
+            
             processingLoop() {
-                if (!this.video.paused && !this.video.ended) {
+                if (!this.video.paused && !this.video.ended && this.stream) {
                     this.processFrame();
                     requestAnimationFrame(() => this.processingLoop());
                 }
             }
             
             processFrame() {
+                // Skip processing during calibration to avoid interference
+                if (this.isCalibrating) {
+                    requestAnimationFrame(() => this.processingLoop());
+                    return;
+                }
+                
                 // Draw video frame to canvas
                 this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
                 
@@ -1146,12 +1219,23 @@
             }
             
             async calibrateZLO() {
+                // Check if camera is started first
+                if (!this.stream || !this.video.srcObject) {
+                    this.updateStatus('Please start camera first before calibration', 'error');
+                    return;
+                }
+                
                 if (this.isCalibrating) return;
                 
                 this.isCalibrating = true;
-                this.updateStatus('Calibrating Zero Light Offset - Cover camera completely', 'info');
+                this.updateStatus('Calibrating Zero Light Offset - Cover camera completely. You should see the camera feed go dark.', 'info');
+                
+                // Keep camera feed visible during calibration so user can see coverage
+                document.getElementById('calibrateBtn').disabled = true;
+                document.getElementById('calibrateBtn').textContent = '⚙️ Calibrating...';
                 
                 // Disable flash for calibration
+                let flashWasEnabled = document.getElementById('flashIndicator').classList.contains('active');
                 try {
                     const track = this.stream.getVideoTracks()[0];
                     await track.applyConstraints({
@@ -1162,8 +1246,15 @@
                     this.debugLog(`Flash disable error: ${error.message}`);
                 }
                 
-                // Wait a moment for user to cover camera
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                // Give user time to see the instruction and cover camera
+                this.updateStatus('Cover the camera completely with your finger. Calibration starting in 3 seconds...', 'warning');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                this.updateStatus('Cover the camera completely with your finger. Calibration starting in 2 seconds...', 'warning');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                this.updateStatus('Cover the camera completely with your finger. Calibration starting in 1 second...', 'warning');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                this.updateStatus('Calibrating... Keep camera covered!', 'info');
                 
                 // Collect dark samples
                 const darkSamples = [];
@@ -1173,6 +1264,11 @@
                     const roiData = this.extractROI();
                     const signal = this.calculatePPGSignal(roiData);
                     darkSamples.push(signal);
+                    
+                    // Show progress
+                    const progress = Math.round(((i + 1) / sampleCount) * 100);
+                    this.updateStatus(`Calibrating... ${progress}% complete. Keep camera covered!`, 'info');
+                    
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
                 
@@ -1181,19 +1277,30 @@
                 this.zlo.green = darkSamples.reduce((sum, s) => sum + s.green, 0) / darkSamples.length;
                 this.zlo.blue = darkSamples.reduce((sum, s) => sum + s.blue, 0) / darkSamples.length;
                 
-                // Re-enable flash
-                try {
-                    const track = this.stream.getVideoTracks()[0];
-                    await track.applyConstraints({
-                        advanced: [{ torch: true }]
-                    });
-                    document.getElementById('flashIndicator').classList.add('active');
-                } catch (error) {
-                    this.debugLog(`Flash re-enable error: ${error.message}`);
+                // Re-enable flash if it was enabled before
+                if (flashWasEnabled) {
+                    try {
+                        const track = this.stream.getVideoTracks()[0];
+                        await track.applyConstraints({
+                            advanced: [{ torch: true }]
+                        });
+                        document.getElementById('flashIndicator').classList.add('active');
+                    } catch (error) {
+                        this.debugLog(`Flash re-enable error: ${error.message}`);
+                    }
                 }
                 
+                // Reset button and status
+                document.getElementById('calibrateBtn').disabled = false;
+                document.getElementById('calibrateBtn').textContent = '⚙️ Calibrate ZLO';
+                
                 this.debugLog(`ZLO Calibration complete - R: ${this.zlo.red.toFixed(2)}, G: ${this.zlo.green.toFixed(2)}, B: ${this.zlo.blue.toFixed(2)}`);
-                this.updateStatus('Calibration complete - Resume normal finger positioning', 'success');
+                this.updateStatus('Calibration complete! Remove finger and position normally for PPG measurement.', 'success');
+                
+                // Clear signal buffer to start fresh after calibration
+                this.signalBuffer = [];
+                this.timeBuffer = [];
+                this.signalQuality = 0;
                 
                 this.isCalibrating = false;
             }
