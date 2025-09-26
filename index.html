@@ -300,6 +300,7 @@
             gap: 15px;
             justify-content: center;
             margin: 20px 0;
+            flex-wrap: wrap;
         }
         
         .btn {
@@ -474,16 +475,16 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📱 PPG Signal Recorder</h1>
+            <h1>PPG Signal Recorder</h1>
             <p>Professional smartphone-based photoplethysmography recording</p>
         </div>
         
         <div class="main-grid">
             <div class="card">
                 <div class="device-setup">
-                    <h3>📱 Device Configuration</h3>
+                    <h3>Device Configuration</h3>
                     <div class="device-buttons">
-                        <button class="device-btn" id="androidBtn">Android</button>
+                        <button class="device-btn active" id="androidBtn">Android</button>
                         <button class="device-btn" id="iosBtn">iOS</button>
                     </div>
                     
@@ -553,15 +554,15 @@
             
             <div class="card">
                 <div class="signal-quality">
-                    <h3>📊 Signal Quality Monitor</h3>
+                    <h3>Signal Quality Monitor</h3>
                     
                     <div class="quality-meter">
                         <div class="quality-bar" id="qualityBar"></div>
                     </div>
-                    <div class="quality-text" id="qualityText">Initializing...</div>
+                    <div class="quality-text" id="qualityText">Android selected - click Start Camera</div>
                     
                     <div class="status-message status-info" id="statusMessage">
-                        Position your fingertip over the rear camera and flash
+                        Android selected by default. Click Start Camera to begin.
                     </div>
                     
                     <div class="ppg-display">
@@ -592,16 +593,16 @@
         
         <div class="card">
             <div class="recording-controls">
-                <button class="btn btn-secondary" id="startCameraBtn">📷 Start Camera</button>
-                <button class="btn btn-primary" id="startSQMBtn" disabled>🔍 Start Signal Monitor</button>
-                <button class="btn btn-primary" id="startRecordingBtn" disabled>🔴 Start Recording</button>
-                <button class="btn btn-danger" id="stopRecordingBtn" disabled>⏹️ Stop</button>
-                <button class="btn btn-secondary" id="calibrateBtn" disabled>⚙️ Calibrate ZLO</button>
-                <button class="btn btn-secondary" id="resetBtn">🔄 Reset</button>
+                <button class="btn btn-secondary" id="startCameraBtn">Start Camera</button>
+                <button class="btn btn-primary" id="startSQMBtn" disabled>Start Signal Monitor</button>
+                <button class="btn btn-primary" id="startRecordingBtn" disabled>Start Recording</button>
+                <button class="btn btn-danger" id="stopRecordingBtn" disabled>Stop</button>
+                <button class="btn btn-secondary" id="calibrateBtn" disabled>Calibrate ZLO</button>
+                <button class="btn btn-secondary" id="resetBtn">Reset</button>
             </div>
             
             <div class="recording-indicator" id="recordingIndicator">
-                🔴 RECORDING IN PROGRESS...
+                RECORDING IN PROGRESS...
             </div>
             
             <div class="progress-bar">
@@ -610,14 +611,14 @@
         </div>
         
         <div class="card download-section" id="downloadSection" style="display: none;">
-            <h3>📥 Recording Results</h3>
+            <h3>Recording Results</h3>
             <div class="results-preview" id="resultsPreview"></div>
-            <button class="btn btn-primary" id="downloadBtn">💾 Download PPG Data</button>
+            <button class="btn btn-primary" id="downloadBtn">Download PPG Data</button>
         </div>
         
         <div class="card">
             <div class="debug-panel">
-                <div class="debug-header" id="debugHeader">🔧 Debug Information (Click to toggle)</div>
+                <div class="debug-header" id="debugHeader">Debug Information (Click to toggle)</div>
                 <div class="debug-content" id="debugContent"></div>
             </div>
         </div>
@@ -640,31 +641,32 @@
                 this.recordingData = [];
                 this.signalBuffer = [];
                 this.timeBuffer = [];
-                this.sampleRate = 30; // Target 30fps
-                this.bufferSize = 300; // 10 seconds at 30fps
+                this.sampleRate = 30;
+                this.bufferSize = 300;
                 
-                this.deviceType = null;
+                // FIXED: Set Android as default
+                this.deviceType = 'android';
                 this.roiType = 'rectangle';
                 this.roiParams = { x: 25, y: 25, width: 50, height: 50 };
-                this.zlo = { red: 0, green: 0, blue: 0 }; // Zero Light Offset calibration
+                this.zlo = { red: 0, green: 0, blue: 0 };
                 
                 this.qualityThreshold = 0.6;
                 this.signalQuality = 0;
                 this.heartRate = 0;
                 this.snr = 0;
                 
-                // SQM timeout handling
+                // Timer handling
                 this.sqmStartTime = null;
                 this.sqmTimeoutDuration = 30000; // 30 seconds
                 this.sqmTimeoutTimer = null;
+                this.sqmCountdownTimer = null;
                 
                 this.initializeEventListeners();
                 this.initializeCanvases();
                 this.startDebugLog();
                 
-                // Initialize with proper idle state
-                this.updateStatus('Select device type to begin', 'info');
-                document.getElementById('qualityText').textContent = 'Camera not started';
+                // Initialize with Android pre-selected
+                this.debugLog('PPG Recorder initialized with Android pre-selected');
             }
             
             initializeEventListeners() {
@@ -723,11 +725,6 @@
             
             async startCamera() {
                 try {
-                    if (!this.deviceType) {
-                        this.updateStatus('Please select device type first', 'error');
-                        return;
-                    }
-                    
                     this.updateStatus('Requesting camera access...', 'info');
                     
                     const constraints = this.getCameraConstraints();
@@ -750,105 +747,10 @@
                 }
             }
             
-            startSQM() {
-                if (!this.isCameraActive) {
-                    this.updateStatus('Please start camera first', 'error');
-                    return;
-                }
-                
-                // Clear any previous data to start completely fresh
-                this.signalBuffer = [];
-                this.timeBuffer = [];
-                this.signalQuality = 0;
-                this.heartRate = 0;
-                
-                // Record exact start time
-                this.sqmStartTime = Date.now();
-                this.isProcessing = true;
-                
-                // Start the processing loop
-                this.processingLoop();
-                
-                // Start the 30-second timeout
-                this.sqmTimeoutTimer = setTimeout(() => {
-                    this.handleSQMTimeout();
-                }, this.sqmTimeoutDuration);
-                
-                // Start countdown display timer that updates every second
-                this.sqmCountdownTimer = setInterval(() => {
-                    this.updateCountdown();
-                }, 1000);
-                
-                document.getElementById('startSQMBtn').disabled = true;
-                document.getElementById('startSQMBtn').textContent = '🔍 Monitoring...';
-                
-                this.updateStatus('SQM started - 30 seconds to find good signal. Place finger over rear camera with flash.', 'info');
-                document.getElementById('qualityText').textContent = 'Monitoring - 30s remaining (place finger)';
-                
-                this.debugLog(`SQM started at ${new Date(this.sqmStartTime).toLocaleTimeString()}`);
-            }
-            
-            updateCountdown() {
-                if (!this.sqmStartTime || !this.isProcessing) {
-                    if (this.sqmCountdownTimer) {
-                        clearInterval(this.sqmCountdownTimer);
-                        this.sqmCountdownTimer = null;
-                    }
-                    return;
-                }
-                
-                const elapsed = Date.now() - this.sqmStartTime;
-                const remaining = Math.max(0, Math.ceil((this.sqmTimeoutDuration - elapsed) / 1000));
-                const currentQuality = Math.round(this.signalQuality * 100);
-                
-                // Update the quality text with countdown
-                if (remaining > 0) {
-                    document.getElementById('qualityText').textContent = `Monitoring - ${remaining}s remaining (${currentQuality}% quality)`;
-                } else {
-                    document.getElementById('qualityText').textContent = `Timeout reached - ${currentQuality}% final quality`;
-                    // Stop the countdown timer
-                    clearInterval(this.sqmCountdownTimer);
-                    this.sqmCountdownTimer = null;
-                }
-                
-                this.debugLog(`Countdown: ${remaining}s remaining, quality: ${currentQuality}%`);
-            }
-            
-            handleSQMTimeout() {
-                this.debugLog(`SQM timeout after 30 seconds. Final quality: ${(this.signalQuality * 100).toFixed(1)}%`);
-                
-                // Clear the timeout timer
-                this.sqmTimeoutTimer = null;
-                
-                // Stop countdown updates
-                if (this.sqmCountdownTimer) {
-                    clearInterval(this.sqmCountdownTimer);
-                    this.sqmCountdownTimer = null;
-                }
-                
-                const finalQuality = Math.round(this.signalQuality * 100);
-                document.getElementById('qualityText').textContent = `Timeout reached - ${finalQuality}% final quality`;
-                
-                // ALWAYS enable recording after timeout, regardless of quality
-                document.getElementById('startRecordingBtn').disabled = false;
-                
-                if (this.signalQuality >= this.qualityThreshold) {
-                    this.updateStatus('Timeout reached with GOOD signal quality - ready to record!', 'success');
-                    document.getElementById('startRecordingBtn').textContent = '🔴 Start Recording';
-                    document.getElementById('startRecordingBtn').style.background = '#2563eb';
-                } else {
-                    this.updateStatus('Timeout reached with POOR signal quality - you can still record or reset to try again.', 'warning');
-                    document.getElementById('startRecordingBtn').textContent = '⚠️ Record Anyway (Poor Quality)';
-                    document.getElementById('startRecordingBtn').style.background = '#f59e0b';
-                }
-                
-                document.getElementById('startRecordingBtn').style.color = 'white';
-            }
-            
             getCameraConstraints() {
                 const baseConstraints = {
                     video: {
-                        facingMode: { exact: 'environment' }, // Rear camera
+                        facingMode: { exact: 'environment' },
                         width: { ideal: 1920, min: 640 },
                         height: { ideal: 1080, min: 480 },
                         frameRate: { ideal: 30, min: 15 }
@@ -856,12 +758,10 @@
                 };
                 
                 if (this.deviceType === 'android') {
-                    // Android-specific optimizations based on the research paper
                     baseConstraints.video.exposureMode = 'manual';
                     baseConstraints.video.whiteBalanceMode = 'manual';
-                    baseConstraints.video.colorTemperature = 3000; // Incandescent setting
+                    baseConstraints.video.colorTemperature = 3000;
                 } else if (this.deviceType === 'ios') {
-                    // iOS optimizations (limited due to API constraints)
                     baseConstraints.video.exposureMode = 'continuous';
                     baseConstraints.video.focusMode = 'continuous';
                 }
@@ -872,12 +772,7 @@
             setupProcessing() {
                 this.canvas.width = this.video.videoWidth;
                 this.canvas.height = this.video.videoHeight;
-                
-                // Enable flash if available
                 this.enableFlash();
-                
-                // Start processing loop
-                this.processingLoop();
             }
             
             async enableFlash() {
@@ -900,69 +795,93 @@
                 }
             }
             
-            
-            resetSystem() {
-                this.debugLog('System reset initiated');
+            // FIXED: Manual SQM start with working timer
+            startSQM() {
+                if (!this.isCameraActive) {
+                    this.updateStatus('Please start camera first', 'error');
+                    return;
+                }
                 
-                // Stop any ongoing processes
-                this.isRecording = false;
-                this.isCalibrating = false;
-                
-                // Clear timers
-                if (this.recordingTimer) clearTimeout(this.recordingTimer);
-                if (this.progressInterval) clearInterval(this.progressInterval);
-                
-                // Clear buffers and data
-                this.recordingData = [];
+                // Clear any previous data
                 this.signalBuffer = [];
                 this.timeBuffer = [];
                 this.signalQuality = 0;
                 this.heartRate = 0;
-                this.snr = 0;
                 
-                // Reset ZLO calibration
-                this.zlo = { red: 0, green: 0, blue: 0 };
+                // FIXED: Use Date.now() for reliable timing
+                this.sqmStartTime = Date.now();
+                this.isProcessing = true;
                 
-                // Stop camera if running
-                if (this.stream) {
-                    this.stream.getTracks().forEach(track => track.stop());
-                    this.stream = null;
-                    this.video.srcObject = null;
+                // Start processing loop
+                this.processingLoop();
+                
+                // FIXED: Start 30-second timeout
+                this.sqmTimeoutTimer = setTimeout(() => {
+                    this.handleSQMTimeout();
+                }, this.sqmTimeoutDuration);
+                
+                // FIXED: Start countdown display
+                this.sqmCountdownTimer = setInterval(() => {
+                    this.updateCountdown();
+                }, 1000);
+                
+                document.getElementById('startSQMBtn').disabled = true;
+                document.getElementById('startSQMBtn').textContent = 'Monitoring...';
+                
+                this.updateStatus('SQM started - 30 seconds to find good signal. Place finger over rear camera with flash.', 'info');
+                document.getElementById('qualityText').textContent = 'Monitoring - 30s remaining';
+                
+                this.debugLog(`SQM started at ${new Date(this.sqmStartTime).toLocaleTimeString()}`);
+            }
+            
+            // FIXED: Working countdown timer
+            updateCountdown() {
+                if (!this.sqmStartTime || !this.isProcessing) {
+                    if (this.sqmCountdownTimer) {
+                        clearInterval(this.sqmCountdownTimer);
+                        this.sqmCountdownTimer = null;
+                    }
+                    return;
                 }
                 
-                // Reset UI elements
-                document.getElementById('startCameraBtn').disabled = false;
-                document.getElementById('startCameraBtn').textContent = '📷 Start Camera';
-                document.getElementById('startRecordingBtn').disabled = true;
-                document.getElementById('stopRecordingBtn').disabled = true;
-                document.getElementById('calibrateBtn').disabled = false;
-                document.getElementById('calibrateBtn').textContent = '⚙️ Calibrate ZLO';
-                document.getElementById('recordingIndicator').classList.remove('active');
-                document.getElementById('progressFill').style.width = '0%';
-                document.getElementById('flashIndicator').classList.remove('active');
-                document.getElementById('downloadSection').style.display = 'none';
+                const elapsed = Date.now() - this.sqmStartTime;
+                const remaining = Math.max(0, Math.ceil((this.sqmTimeoutDuration - elapsed) / 1000));
+                const currentQuality = Math.round(this.signalQuality * 100);
                 
-                // Reset quality display
-                document.getElementById('qualityBar').style.width = '0%';
-                document.getElementById('qualityText').textContent = 'System Reset';
+                if (remaining > 0) {
+                    document.getElementById('qualityText').textContent = `Monitoring - ${remaining}s remaining (${currentQuality}%)`;
+                } else {
+                    document.getElementById('qualityText').textContent = `Timeout - ${currentQuality}% final quality`;
+                    clearInterval(this.sqmCountdownTimer);
+                    this.sqmCountdownTimer = null;
+                }
                 
-                // Reset metrics
-                document.getElementById('heartRate').textContent = '--';
-                document.getElementById('snrValue').textContent = '--';
-                document.getElementById('signalStrength').textContent = '--';
-                document.getElementById('dcComponent').textContent = '--';
+                this.debugLog(`Timer: ${remaining}s remaining, quality: ${currentQuality}%`);
+            }
+            
+            // FIXED: Proper timeout handling
+            handleSQMTimeout() {
+                this.debugLog(`SQM timeout after 30 seconds. Final quality: ${(this.signalQuality * 100).toFixed(1)}%`);
                 
-                // Clear PPG canvas
-                this.ppgCtx.clearRect(0, 0, this.ppgCanvas.width, this.ppgCanvas.height);
-                this.drawPPGGrid();
+                this.sqmTimeoutTimer = null;
+                if (this.sqmCountdownTimer) {
+                    clearInterval(this.sqmCountdownTimer);
+                    this.sqmCountdownTimer = null;
+                }
                 
-                // Reset device selection
-                document.querySelectorAll('.device-btn').forEach(btn => btn.classList.remove('active'));
-                this.deviceType = null;
+                // FIXED: Always enable recording after timeout
+                document.getElementById('startRecordingBtn').disabled = false;
                 
-                this.updateStatus('System reset complete. Please select device type and start camera.', 'info');
-                
-                this.debugLog('System reset completed successfully');
+                if (this.signalQuality >= this.qualityThreshold) {
+                    this.updateStatus('Timeout reached with GOOD signal - ready to record!', 'success');
+                    document.getElementById('startRecordingBtn').textContent = 'Start Recording';
+                    document.getElementById('startRecordingBtn').style.background = '#2563eb';
+                } else {
+                    this.updateStatus('Timeout reached with POOR signal - you can still record or reset.', 'warning');
+                    document.getElementById('startRecordingBtn').textContent = 'Record Anyway (Poor Quality)';
+                    document.getElementById('startRecordingBtn').style.background = '#f59e0b';
+                }
+                document.getElementById('startRecordingBtn').style.color = 'white';
             }
             
             processingLoop() {
@@ -970,42 +889,23 @@
                     this.processFrame();
                     requestAnimationFrame(() => this.processingLoop());
                 } else if (this.isCameraActive && this.isProcessing) {
-                    // Keep trying to process if camera is active
                     requestAnimationFrame(() => this.processingLoop());
                 }
             }
             
             processFrame() {
-                // Skip processing during calibration to avoid interference
-                if (this.isCalibrating) {
-                    return;
-                }
+                if (this.isCalibrating) return;
                 
                 try {
-                    // Draw video frame to canvas
                     this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
-                    
-                    // Extract ROI
                     const roiData = this.extractROI();
-                    
-                    // Calculate PPG signal
                     const signal = this.calculatePPGSignal(roiData);
-                    
-                    // Apply ZLO correction
                     const correctedSignal = this.applyZLOCorrection(signal);
-                    
-                    // Update signal buffer
                     this.updateSignalBuffer(correctedSignal);
-                    
-                    // Assess signal quality
                     this.assessSignalQuality();
-                    
-                    // Update displays
                     this.updatePPGDisplay();
                     this.updateMetrics();
                     this.updateROIDisplay();
-                    
-                    // Check recording readiness
                     this.checkRecordingReadiness();
                 } catch (error) {
                     this.debugLog(`Processing error: ${error.message}`);
@@ -1021,7 +921,6 @@
                 if (this.roiType === 'rectangle') {
                     return this.ctx.getImageData(x, y, width, height);
                 } else {
-                    // Circular ROI
                     const centerX = x + width / 2;
                     const centerY = y + height / 2;
                     const radius = Math.min(width, height) / 2;
@@ -1052,7 +951,7 @@
                 let pixelCount = 0;
                 
                 for (let i = 0; i < data.length; i += 4) {
-                    if (data[i + 3] > 0) { // Check alpha channel for valid pixels
+                    if (data[i + 3] > 0) {
                         redSum += data[i];
                         greenSum += data[i + 1];
                         blueSum += data[i + 2];
@@ -1078,19 +977,16 @@
             }
             
             updateSignalBuffer(signal) {
-                const timestamp = performance.now();
+                const timestamp = Date.now();
                 
-                // Use green channel for PPG (best for heart rate detection)
                 this.signalBuffer.push(signal.green);
                 this.timeBuffer.push(timestamp);
                 
-                // Maintain buffer size
                 if (this.signalBuffer.length > this.bufferSize) {
                     this.signalBuffer.shift();
                     this.timeBuffer.shift();
                 }
                 
-                // Store for recording if active
                 if (this.isRecording) {
                     this.recordingData.push({
                         timestamp: timestamp,
@@ -1102,84 +998,70 @@
                 }
             }
             
+            // COMPLETELY FIXED: Signal quality logic
             assessSignalQuality() {
-                if (this.signalBuffer.length < 60) { // Need at least 2 seconds of data
+                if (this.signalBuffer.length < 60) {
                     this.signalQuality = 0;
                     return;
                 }
                 
-                const signal = this.signalBuffer.slice(-60); // Last 2 seconds
+                const signal = this.signalBuffer.slice(-60);
                 const mean = signal.reduce((a, b) => a + b, 0) / signal.length;
                 const variance = signal.reduce((sum, val) => sum + (val - mean) ** 2, 0) / signal.length;
                 const std = Math.sqrt(variance);
                 
-                const dc = mean;  // Average brightness level
-                const ac = std;   // Variation (should be heartbeat)
+                const dc = mean;
+                const ac = std;
                 const acDcRatio = dc > 0 ? ac / dc : 0;
                 
-                // COMPLETELY CORRECTED PPG QUALITY LOGIC:
-                // For proper PPG measurement with flash:
-                // - Environmental light (no finger): HIGH pixel values (200+) → BAD quality (0-20%)
-                // - Finger properly placed: MEDIUM pixel values (60-150) → GOOD quality (80-100%)
-                // - Too dark/blocked: LOW pixel values (<30) → POOR quality (20-40%)
+                // CORRECTED PPG LOGIC:
+                // HIGH pixel values (200+) = environmental light = BAD (0-20%)
+                // MEDIUM pixel values (60-150) = finger with flash = GOOD (80-100%)
+                // LOW pixel values (<30) = blocked/no flash = POOR (20-40%)
                 
                 let finalQuality = 0;
                 let statusMessage = '';
                 
                 if (dc >= 200) {
                     // Too bright - environmental light, no finger
-                    finalQuality = Math.max(0, 0.2 - (dc - 200) / 300); // Gets worse as brighter
-                    statusMessage = `ENVIRONMENTAL LIGHT DETECTED (${dc.toFixed(0)}) - Cover camera with finger`;
+                    finalQuality = Math.max(0, 0.2 - (dc - 200) / 500);
+                    statusMessage = `ENVIRONMENTAL LIGHT (${dc.toFixed(0)}) - Cover camera with finger`;
                 } else if (dc >= 150 && dc < 200) {
-                    // Still quite bright - partial coverage or bright environment
+                    // Still bright - partial coverage
                     finalQuality = 0.3;
-                    statusMessage = `TOO BRIGHT (${dc.toFixed(0)}) - Better finger coverage needed`;
+                    statusMessage = `TOO BRIGHT (${dc.toFixed(0)}) - Better coverage needed`;
                 } else if (dc >= 60 && dc < 150) {
-                    // OPTIMAL RANGE - finger with flash penetration
-                    // This should give the highest quality scores
-                    let baseQuality = 0.9;
-                    
-                    // Bonus for good AC/DC ratio (heartbeat detection)
+                    // OPTIMAL RANGE - finger with flash
+                    finalQuality = 0.9;
                     if (acDcRatio >= 0.01 && acDcRatio <= 0.05) {
-                        baseQuality = 1.0; // Perfect - has heartbeat signal
-                    } else if (acDcRatio >= 0.005 && acDcRatio <= 0.08) {
-                        baseQuality = 0.85; // Good signal
+                        finalQuality = 1.0; // Perfect with heartbeat
                     }
-                    
-                    finalQuality = baseQuality;
                     statusMessage = `OPTIMAL COVERAGE (${dc.toFixed(0)}) - Excellent for PPG`;
                 } else if (dc >= 30 && dc < 60) {
                     // A bit dim but usable
                     finalQuality = 0.6;
-                    statusMessage = `GOOD COVERAGE (${dc.toFixed(0)}) - Slightly dim but usable`;
+                    statusMessage = `GOOD COVERAGE (${dc.toFixed(0)}) - Slightly dim`;
                 } else if (dc >= 10 && dc < 30) {
-                    // Too dark - heavy pressure or no flash
+                    // Too dark
                     finalQuality = 0.3;
-                    statusMessage = `TOO DARK (${dc.toFixed(0)}) - Check flash or reduce pressure`;
+                    statusMessage = `TOO DARK (${dc.toFixed(0)}) - Check flash`;
                 } else {
-                    // Extremely dark - completely blocked
+                    // Blocked
                     finalQuality = 0.1;
-                    statusMessage = `BLOCKED (${dc.toFixed(0)}) - No light penetration`;
-                }
-                
-                // Apply AC/DC ratio bonus more clearly for the optimal range
-                if (dc >= 60 && dc < 150 && acDcRatio >= 0.01 && acDcRatio <= 0.05) {
-                    finalQuality = Math.min(1.0, finalQuality + 0.1); // Bonus for heartbeat signal
+                    statusMessage = `BLOCKED (${dc.toFixed(0)}) - No light`;
                 }
                 
                 this.signalQuality = finalQuality;
-                
-                // Calculate SNR for display
                 this.snr = ac > 0.01 ? 20 * Math.log10(dc / ac) : 0;
                 
-                this.debugLog(`PPG: ${statusMessage}, AC/DC: ${(acDcRatio*100).toFixed(2)}%, Final Quality: ${(this.signalQuality * 100).toFixed(1)}%`);
+                this.debugLog(`${statusMessage}, AC/DC: ${(acDcRatio*100).toFixed(2)}%, Quality: ${(finalQuality * 100).toFixed(1)}%`);
             }
             
             calculateStabilityQuality() {
                 if (this.signalBuffer.length < 90) return 0;
                 
-                const recent = this.signalBuffer.slice(-90, -60); // 3-2 seconds ago
-                const current = this.signalBuffer.slice(-60); // Last 2 seconds
+                const recent = this.signalBuffer.slice(-90, -60);
+                const current = this.signalBuffer.slice(-60);
                 
                 const recentMean = recent.reduce((a, b) => a + b, 0) / recent.length;
                 const currentMean = current.reduce((a, b) => a + b, 0) / current.length;
@@ -1188,49 +1070,50 @@
                 return Math.max(0, stability);
             }
             
+            // FIXED: Heart rate calculation
             calculateHeartRate() {
-                if (this.signalBuffer.length < 120) return 0; // Need at least 4 seconds
+                if (this.signalBuffer.length < 90) return 0;
                 
-                const signal = this.signalBuffer.slice(-120); // Last 4 seconds
-                const sampleRate = 30; // Approximate frame rate
+                const signal = this.signalBuffer.slice(-90);
+                const sampleRate = 30;
                 
-                // Simple peak detection for heart rate
-                const peaks = this.findPeaks(signal);
+                const peaks = [];
+                const minPeakDistance = 15;
+                const threshold = this.calculateDynamicThreshold(signal);
+                
+                let lastPeakIndex = -minPeakDistance;
+                
+                for (let i = 2; i < signal.length - 2; i++) {
+                    if (signal[i] > signal[i-1] && 
+                        signal[i] > signal[i+1] && 
+                        signal[i] > signal[i-2] && 
+                        signal[i] > signal[i+2] && 
+                        signal[i] > threshold &&
+                        (i - lastPeakIndex) >= minPeakDistance) {
+                        
+                        peaks.push(i);
+                        lastPeakIndex = i;
+                    }
+                }
+                
                 if (peaks.length < 2) return 0;
                 
-                // Calculate intervals between peaks
                 const intervals = [];
                 for (let i = 1; i < peaks.length; i++) {
                     intervals.push(peaks[i] - peaks[i-1]);
                 }
                 
-                // Average interval in samples
-                const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+                intervals.sort((a, b) => a - b);
+                const medianInterval = intervals[Math.floor(intervals.length / 2)];
+                const bpm = (60 * sampleRate) / medianInterval;
                 
-                // Convert to BPM
-                const bpm = (60 * sampleRate) / avgInterval;
-                
-                // Filter reasonable heart rates (40-180 BPM)
-                return (bpm >= 40 && bpm <= 180) ? Math.round(bpm) : 0;
+                return (bpm >= 50 && bpm <= 150) ? Math.round(bpm) : 0;
             }
             
-            findPeaks(signal) {
-                const peaks = [];
-                const threshold = this.calculateThreshold(signal);
-                
-                for (let i = 1; i < signal.length - 1; i++) {
-                    if (signal[i] > signal[i-1] && signal[i] > signal[i+1] && signal[i] > threshold) {
-                        peaks.push(i);
-                    }
-                }
-                
-                return peaks;
-            }
-            
-            calculateThreshold(signal) {
+            calculateDynamicThreshold(signal) {
                 const sorted = [...signal].sort((a, b) => a - b);
-                const percentile75 = sorted[Math.floor(sorted.length * 0.75)];
-                return percentile75;
+                const percentile75Index = Math.floor(sorted.length * 0.75);
+                return sorted[percentile75Index];
             }
             
             updatePPGDisplay() {
@@ -1239,12 +1122,10 @@
                 this.ppgCtx.clearRect(0, 0, this.ppgCanvas.width, this.ppgCanvas.height);
                 this.drawPPGGrid();
                 
-                // Draw signal
-                const displaySamples = Math.min(this.signalBuffer.length, 150); // Last 5 seconds at 30fps
+                const displaySamples = Math.min(this.signalBuffer.length, 150);
                 const signal = this.signalBuffer.slice(-displaySamples);
                 
                 if (signal.length > 1) {
-                    // Normalize signal for display
                     const min = Math.min(...signal);
                     const max = Math.max(...signal);
                     const range = max - min || 1;
@@ -1272,7 +1153,6 @@
                 this.ppgCtx.strokeStyle = '#333';
                 this.ppgCtx.lineWidth = 1;
                 
-                // Horizontal lines
                 for (let i = 0; i <= 4; i++) {
                     const y = (i / 4) * this.ppgCanvas.height;
                     this.ppgCtx.beginPath();
@@ -1281,7 +1161,6 @@
                     this.ppgCtx.stroke();
                 }
                 
-                // Vertical lines
                 for (let i = 0; i <= 5; i++) {
                     const x = (i / 5) * this.ppgCanvas.width;
                     this.ppgCtx.beginPath();
@@ -1291,14 +1170,27 @@
                 }
             }
             
+            // FIXED: Metrics with proper signal strength for covered camera
             updateMetrics() {
                 this.heartRate = this.calculateHeartRate();
                 
                 document.getElementById('heartRate').textContent = this.heartRate > 0 ? `${this.heartRate} BPM` : '--';
                 document.getElementById('snrValue').textContent = this.snr > 0 ? `${this.snr.toFixed(1)}` : '--';
                 
-                const signalStrength = this.signalBuffer.length > 0 ? 
-                    Math.round((this.signalBuffer[this.signalBuffer.length - 1] / 255) * 100) : 0;
+                // FIXED: Signal strength shows high values for finger coverage
+                let signalStrength = 0;
+                if (this.signalBuffer.length > 0) {
+                    const currentDC = this.signalBuffer[this.signalBuffer.length - 1];
+                    if (currentDC >= 60 && currentDC <= 150) {
+                        // GOOD coverage should show HIGH strength
+                        signalStrength = Math.round(((150 - Math.abs(currentDC - 105)) / 45) * 100);
+                        signalStrength = Math.min(Math.max(signalStrength, 70), 100);
+                    } else if (currentDC >= 30 && currentDC < 200) {
+                        signalStrength = Math.max(20, 60 - Math.abs(currentDC - 105) / 5);
+                    } else {
+                        signalStrength = 10; // Poor
+                    }
+                }
                 document.getElementById('signalStrength').textContent = `${signalStrength}%`;
                 
                 const dcComponent = this.signalBuffer.length > 0 ? 
@@ -1307,17 +1199,17 @@
                 
                 // Update quality bar
                 const qualityBar = document.getElementById('qualityBar');
-                const qualityText = document.getElementById('qualityText');
                 const qualityPercent = Math.round(this.signalQuality * 100);
-                
                 qualityBar.style.width = `${qualityPercent}%`;
                 
                 let qualityLabel = 'Poor';
-                if (qualityPercent > 80) qualityLabel = 'Excellent';
-                else if (qualityPercent > 60) qualityLabel = 'Good';
-                else if (qualityPercent > 40) qualityLabel = 'Fair';
+                if (qualityPercent >= 80) qualityLabel = 'Excellent';
+                else if (qualityPercent >= 60) qualityLabel = 'Good';
+                else if (qualityPercent >= 40) qualityLabel = 'Fair';
                 
-                qualityText.textContent = `${qualityLabel} (${qualityPercent}%)`;
+                if (!this.sqmTimeoutTimer && !this.sqmCountdownTimer && this.isProcessing) {
+                    document.getElementById('qualityText').textContent = `${qualityLabel} (${qualityPercent}%)`;
+                }
             }
             
             updateROIDisplay() {
@@ -1350,13 +1242,44 @@
             }
             
             checkRecordingReadiness() {
-                const isReady = this.signalQuality >= this.qualityThreshold && this.heartRate > 0;
-                document.getElementById('startRecordingBtn').disabled = !isReady;
+                if (!this.isCameraActive || !this.isProcessing) return;
                 
-                if (isReady && !this.isRecording) {
-                    this.updateStatus('Signal quality good - Ready to record!', 'success');
-                } else if (!isReady && !this.isRecording) {
-                    this.updateStatus('Improving signal... Keep finger steady over camera.', 'warning');
+                const isQualityGood = this.signalQuality >= this.qualityThreshold;
+                const hasHeartRate = this.heartRate > 0;
+                const isReady = isQualityGood && hasHeartRate;
+                const timeoutReached = !this.sqmTimeoutTimer;
+                
+                if (isReady && this.sqmTimeoutTimer) {
+                    clearTimeout(this.sqmTimeoutTimer);
+                    clearInterval(this.sqmCountdownTimer);
+                    this.sqmTimeoutTimer = null;
+                    this.sqmCountdownTimer = null;
+                    
+                    this.updateStatus('Excellent signal quality achieved early! Ready to record.', 'success');
+                    document.getElementById('qualityText').textContent = `Excellent quality (${Math.round(this.signalQuality * 100)}%) - ready!`;
+                    
+                    document.getElementById('startRecordingBtn').disabled = false;
+                    document.getElementById('startRecordingBtn').textContent = 'Start Recording';
+                    document.getElementById('startRecordingBtn').style.background = '#2563eb';
+                    document.getElementById('startRecordingBtn').style.color = 'white';
+                }
+                
+                if (this.sqmTimeoutTimer && this.signalBuffer.length > 0) {
+                    const elapsed = Date.now() - this.sqmStartTime;
+                    const remaining = Math.max(0, Math.ceil((this.sqmTimeoutDuration - elapsed) / 1000));
+                    const currentDC = this.signalBuffer[this.signalBuffer.length - 1];
+                    
+                    if (currentDC >= 200) {
+                        this.updateStatus(`Too bright (${currentDC.toFixed(0)}) - cover camera completely. ${remaining}s remaining.`, 'warning');
+                    } else if (currentDC < 30) {
+                        this.updateStatus(`Too dark (${currentDC.toFixed(0)}) - check flash. ${remaining}s remaining.`, 'warning');
+                    } else if (currentDC >= 60 && currentDC <= 150) {
+                        if (!hasHeartRate) {
+                            this.updateStatus(`Good coverage! Detecting heartbeat... ${remaining}s remaining.`, 'info');
+                        } else {
+                            this.updateStatus(`Excellent coverage, improving quality... ${remaining}s remaining.`, 'info');
+                        }
+                    }
                 }
             }
             
@@ -1379,7 +1302,6 @@
             }
             
             async calibrateZLO() {
-                // Check if camera is started first
                 if (!this.stream || !this.video.srcObject) {
                     this.updateStatus('Please start camera first before calibration', 'error');
                     return;
@@ -1388,13 +1310,11 @@
                 if (this.isCalibrating) return;
                 
                 this.isCalibrating = true;
-                this.updateStatus('Calibrating Zero Light Offset - Cover camera completely. You should see the camera feed go dark.', 'info');
+                this.updateStatus('Calibrating Zero Light Offset - Cover camera completely. You should see the feed go dark.', 'info');
                 
-                // Keep camera feed visible during calibration so user can see coverage
                 document.getElementById('calibrateBtn').disabled = true;
-                document.getElementById('calibrateBtn').textContent = '⚙️ Calibrating...';
+                document.getElementById('calibrateBtn').textContent = 'Calibrating...';
                 
-                // Disable flash for calibration
                 let flashWasEnabled = document.getElementById('flashIndicator').classList.contains('active');
                 try {
                     const track = this.stream.getVideoTracks()[0];
@@ -1406,17 +1326,15 @@
                     this.debugLog(`Flash disable error: ${error.message}`);
                 }
                 
-                // Give user time to see the instruction and cover camera
-                this.updateStatus('Cover the camera completely with your finger. Calibration starting in 3 seconds...', 'warning');
+                this.updateStatus('Cover camera completely with finger. Starting in 3...', 'warning');
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                this.updateStatus('Cover the camera completely with your finger. Calibration starting in 2 seconds...', 'warning');
+                this.updateStatus('Cover camera completely with finger. Starting in 2...', 'warning');
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                this.updateStatus('Cover the camera completely with your finger. Calibration starting in 1 second...', 'warning');
+                this.updateStatus('Cover camera completely with finger. Starting in 1...', 'warning');
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 this.updateStatus('Calibrating... Keep camera covered!', 'info');
                 
-                // Collect dark samples
                 const darkSamples = [];
                 const sampleCount = 30;
                 
@@ -1425,19 +1343,16 @@
                     const signal = this.calculatePPGSignal(roiData);
                     darkSamples.push(signal);
                     
-                    // Show progress
                     const progress = Math.round(((i + 1) / sampleCount) * 100);
                     this.updateStatus(`Calibrating... ${progress}% complete. Keep camera covered!`, 'info');
                     
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
                 
-                // Calculate ZLO values
                 this.zlo.red = darkSamples.reduce((sum, s) => sum + s.red, 0) / darkSamples.length;
                 this.zlo.green = darkSamples.reduce((sum, s) => sum + s.green, 0) / darkSamples.length;
                 this.zlo.blue = darkSamples.reduce((sum, s) => sum + s.blue, 0) / darkSamples.length;
                 
-                // Re-enable flash if it was enabled before
                 if (flashWasEnabled) {
                     try {
                         const track = this.stream.getVideoTracks()[0];
@@ -1450,14 +1365,12 @@
                     }
                 }
                 
-                // Reset button and status
                 document.getElementById('calibrateBtn').disabled = false;
-                document.getElementById('calibrateBtn').textContent = '⚙️ Calibrate ZLO';
+                document.getElementById('calibrateBtn').textContent = 'Calibrate ZLO';
                 
-                this.debugLog(`ZLO Calibration complete - R: ${this.zlo.red.toFixed(2)}, G: ${this.zlo.green.toFixed(2)}, B: ${this.zlo.blue.toFixed(2)}`);
+                this.debugLog(`ZLO calibration complete - R: ${this.zlo.red.toFixed(2)}, G: ${this.zlo.green.toFixed(2)}, B: ${this.zlo.blue.toFixed(2)}`);
                 this.updateStatus('Calibration complete! Remove finger and position normally for PPG measurement.', 'success');
                 
-                // Clear signal buffer to start fresh after calibration
                 this.signalBuffer = [];
                 this.timeBuffer = [];
                 this.signalQuality = 0;
@@ -1465,9 +1378,13 @@
                 this.isCalibrating = false;
             }
             
+            // FIXED: Recording works after timeout regardless of quality
             startRecording() {
-                if (this.signalQuality < this.qualityThreshold) {
-                    this.updateStatus('Signal quality too low for recording', 'error');
+                const timeoutReached = !this.sqmTimeoutTimer;
+                const isQualityGood = this.signalQuality >= this.qualityThreshold;
+                
+                if (!timeoutReached && !isQualityGood) {
+                    this.updateStatus('Please wait for signal quality improvement or 30-second timeout', 'warning');
                     return;
                 }
                 
@@ -1475,27 +1392,26 @@
                 this.recordingData = [];
                 
                 const duration = parseInt(document.getElementById('recordingDuration').value) * 1000;
-                const startTime = performance.now();
+                const startTime = Date.now();
                 
                 document.getElementById('startRecordingBtn').disabled = true;
                 document.getElementById('stopRecordingBtn').disabled = false;
                 document.getElementById('recordingIndicator').classList.add('active');
                 
-                this.updateStatus(`Recording for ${duration/1000} seconds...`, 'info');
+                const qualityNote = isQualityGood ? 'good quality' : 'poor quality (timeout reached)';
+                this.updateStatus(`Recording ${duration/1000}s with ${qualityNote}. Quality: ${Math.round(this.signalQuality * 100)}%`, 'info');
                 
-                // Auto-stop recording after specified duration
                 this.recordingTimer = setTimeout(() => {
                     this.stopRecording();
                 }, duration);
                 
-                // Update progress bar
                 this.progressInterval = setInterval(() => {
-                    const elapsed = performance.now() - startTime;
+                    const elapsed = Date.now() - startTime;
                     const progress = Math.min((elapsed / duration) * 100, 100);
                     document.getElementById('progressFill').style.width = `${progress}%`;
                 }, 100);
                 
-                this.debugLog(`Recording started for ${duration}ms`);
+                this.debugLog(`Recording started - Duration: ${duration}ms, Quality: ${(this.signalQuality*100).toFixed(1)}%`);
             }
             
             stopRecording() {
@@ -1519,12 +1435,10 @@
             processRecordingResults() {
                 if (this.recordingData.length === 0) return;
                 
-                // Calculate recording statistics
                 const avgQuality = this.recordingData.reduce((sum, sample) => sum + sample.quality, 0) / this.recordingData.length;
                 const duration = (this.recordingData[this.recordingData.length - 1].timestamp - this.recordingData[0].timestamp) / 1000;
                 const sampleRate = this.recordingData.length / duration;
                 
-                // Prepare results preview
                 const results = {
                     metadata: {
                         deviceType: this.deviceType,
@@ -1601,6 +1515,79 @@ ${this.recordingResults.data.slice(0, 5).map(sample =>
                 this.debugLog(`Downloaded results: ${filename}`);
             }
             
+            resetSystem() {
+                this.debugLog('System reset initiated');
+                
+                this.isRecording = false;
+                this.isCalibrating = false;
+                this.isCameraActive = false;
+                this.isProcessing = false;
+                
+                if (this.recordingTimer) clearTimeout(this.recordingTimer);
+                if (this.progressInterval) clearInterval(this.progressInterval);
+                if (this.sqmTimeoutTimer) {
+                    clearTimeout(this.sqmTimeoutTimer);
+                    this.sqmTimeoutTimer = null;
+                }
+                if (this.sqmCountdownTimer) {
+                    clearInterval(this.sqmCountdownTimer);
+                    this.sqmCountdownTimer = null;
+                }
+                
+                this.sqmStartTime = null;
+                
+                this.recordingData = [];
+                this.signalBuffer = [];
+                this.timeBuffer = [];
+                this.signalQuality = 0;
+                this.heartRate = 0;
+                this.snr = 0;
+                
+                this.zlo = { red: 0, green: 0, blue: 0 };
+                
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                    this.video.srcObject = null;
+                }
+                
+                document.getElementById('startCameraBtn').disabled = false;
+                document.getElementById('startCameraBtn').textContent = 'Start Camera';
+                document.getElementById('startSQMBtn').disabled = true;
+                document.getElementById('startSQMBtn').textContent = 'Start Signal Monitor';
+                document.getElementById('startRecordingBtn').disabled = true;
+                document.getElementById('startRecordingBtn').textContent = 'Start Recording';
+                document.getElementById('startRecordingBtn').style.background = '#2563eb';
+                document.getElementById('startRecordingBtn').style.color = 'white';
+                document.getElementById('stopRecordingBtn').disabled = true;
+                document.getElementById('calibrateBtn').disabled = true;
+                document.getElementById('calibrateBtn').textContent = 'Calibrate ZLO';
+                document.getElementById('recordingIndicator').classList.remove('active');
+                document.getElementById('progressFill').style.width = '0%';
+                document.getElementById('flashIndicator').classList.remove('active');
+                document.getElementById('downloadSection').style.display = 'none';
+                
+                document.getElementById('qualityBar').style.width = '0%';
+                document.getElementById('qualityText').textContent = 'Android selected - click Start Camera';
+                
+                document.getElementById('heartRate').textContent = '--';
+                document.getElementById('snrValue').textContent = '--';
+                document.getElementById('signalStrength').textContent = '--';
+                document.getElementById('dcComponent').textContent = '--';
+                
+                this.ppgCtx.clearRect(0, 0, this.ppgCanvas.width, this.ppgCanvas.height);
+                this.drawPPGGrid();
+                
+                // FIXED: Reset to Android default
+                document.querySelectorAll('.device-btn').forEach(btn => btn.classList.remove('active'));
+                document.getElementById('androidBtn').classList.add('active');
+                this.deviceType = 'android';
+                
+                this.updateStatus('System reset complete. Android selected by default.', 'info');
+                
+                this.debugLog('System reset completed successfully');
+            }
+            
             updateStatus(message, type) {
                 const statusElement = document.getElementById('statusMessage');
                 statusElement.textContent = message;
@@ -1611,8 +1598,8 @@ ${this.recordingResults.data.slice(0, 5).map(sample =>
             
             startDebugLog() {
                 this.debugMessages = [];
-                this.debugLog('PPG Recorder initialized');
-                this.debugLog('Based on research: "A calibration method for smartphone camera photoplethysmography"');
+                this.debugLog('PPG Recorder initialized with CORRECTED signal quality logic');
+                this.debugLog('Environment = BAD quality, Finger coverage = GOOD quality');
             }
             
             debugLog(message) {
@@ -1622,7 +1609,6 @@ ${this.recordingResults.data.slice(0, 5).map(sample =>
                 this.debugMessages = this.debugMessages || [];
                 this.debugMessages.push(logEntry);
                 
-                // Keep only last 100 messages
                 if (this.debugMessages.length > 100) {
                     this.debugMessages.shift();
                 }
@@ -1633,12 +1619,10 @@ ${this.recordingResults.data.slice(0, 5).map(sample =>
             }
         }
         
-        // Initialize the PPG Recorder when page loads
         document.addEventListener('DOMContentLoaded', () => {
             window.ppgRecorder = new PPGRecorder();
         });
         
-        // Register Service Worker for PWA functionality
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('data:text/javascript,console.log("SW registered")');
         }
