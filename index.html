@@ -756,40 +756,40 @@
                     return;
                 }
                 
-                // Clear any previous data to start fresh
+                // Clear any previous data to start completely fresh
                 this.signalBuffer = [];
                 this.timeBuffer = [];
                 this.signalQuality = 0;
                 this.heartRate = 0;
                 
-                this.sqmStartTime = performance.now();
+                // Record exact start time
+                this.sqmStartTime = Date.now();
                 this.isProcessing = true;
                 
                 // Start the processing loop
                 this.processingLoop();
                 
-                // Start SQM timeout timer (30 seconds)
+                // Start the 30-second timeout
                 this.sqmTimeoutTimer = setTimeout(() => {
                     this.handleSQMTimeout();
                 }, this.sqmTimeoutDuration);
                 
-                // Start countdown display timer (updates every second)
+                // Start countdown display timer that updates every second
                 this.sqmCountdownTimer = setInterval(() => {
-                    this.updateSQMCountdown();
+                    this.updateCountdown();
                 }, 1000);
                 
                 document.getElementById('startSQMBtn').disabled = true;
                 document.getElementById('startSQMBtn').textContent = '🔍 Monitoring...';
                 
-                this.updateStatus('Signal Quality Monitoring started. Place finger over rear camera with flash. 30 seconds remaining.', 'info');
-                document.getElementById('qualityText').textContent = 'Monitoring - place finger over camera (30s)';
+                this.updateStatus('SQM started - 30 seconds to find good signal. Place finger over rear camera with flash.', 'info');
+                document.getElementById('qualityText').textContent = 'Monitoring - 30s remaining (place finger)';
                 
-                this.debugLog(`SQM started at ${this.sqmStartTime} with 30-second timeout`);
+                this.debugLog(`SQM started at ${new Date(this.sqmStartTime).toLocaleTimeString()}`);
             }
             
-            updateSQMCountdown() {
-                if (!this.sqmStartTime || !this.sqmTimeoutTimer) {
-                    // Timer has been cleared, stop countdown
+            updateCountdown() {
+                if (!this.sqmStartTime || !this.isProcessing) {
                     if (this.sqmCountdownTimer) {
                         clearInterval(this.sqmCountdownTimer);
                         this.sqmCountdownTimer = null;
@@ -797,48 +797,52 @@
                     return;
                 }
                 
-                const elapsed = performance.now() - this.sqmStartTime;
+                const elapsed = Date.now() - this.sqmStartTime;
                 const remaining = Math.max(0, Math.ceil((this.sqmTimeoutDuration - elapsed) / 1000));
-                
-                // Update quality text with countdown
                 const currentQuality = Math.round(this.signalQuality * 100);
-                document.getElementById('qualityText').textContent = `Monitoring - ${remaining}s remaining (${currentQuality}% quality)`;
                 
-                this.debugLog(`SQM countdown: ${remaining}s remaining, quality: ${currentQuality}%`);
-                
-                if (remaining <= 0) {
+                // Update the quality text with countdown
+                if (remaining > 0) {
+                    document.getElementById('qualityText').textContent = `Monitoring - ${remaining}s remaining (${currentQuality}% quality)`;
+                } else {
+                    document.getElementById('qualityText').textContent = `Timeout reached - ${currentQuality}% final quality`;
+                    // Stop the countdown timer
                     clearInterval(this.sqmCountdownTimer);
                     this.sqmCountdownTimer = null;
                 }
+                
+                this.debugLog(`Countdown: ${remaining}s remaining, quality: ${currentQuality}%`);
             }
             
             handleSQMTimeout() {
-                this.debugLog(`SQM timeout reached after 30 seconds. Final quality: ${(this.signalQuality * 100).toFixed(1)}%`);
+                this.debugLog(`SQM timeout after 30 seconds. Final quality: ${(this.signalQuality * 100).toFixed(1)}%`);
                 
-                // Clear the timeout timer and countdown
+                // Clear the timeout timer
                 this.sqmTimeoutTimer = null;
+                
+                // Stop countdown updates
                 if (this.sqmCountdownTimer) {
                     clearInterval(this.sqmCountdownTimer);
                     this.sqmCountdownTimer = null;
                 }
                 
-                document.getElementById('qualityText').textContent = `Timeout reached - ${Math.round(this.signalQuality * 100)}% final quality`;
+                const finalQuality = Math.round(this.signalQuality * 100);
+                document.getElementById('qualityText').textContent = `Timeout reached - ${finalQuality}% final quality`;
                 
-                if (this.signalQuality < this.qualityThreshold) {
-                    this.updateStatus('30-second timeout reached. Signal quality still poor - you can record anyway or reset.', 'warning');
-                    
-                    // Enable recording despite poor quality, but warn user
-                    document.getElementById('startRecordingBtn').disabled = false;
-                    document.getElementById('startRecordingBtn').textContent = '⚠️ Record Anyway (Poor Quality)';
-                    document.getElementById('startRecordingBtn').style.background = '#f59e0b';
-                    document.getElementById('startRecordingBtn').style.color = 'white';
-                } else {
-                    this.updateStatus('Good signal achieved - ready to record!', 'success');
-                    document.getElementById('startRecordingBtn').disabled = false;
+                // ALWAYS enable recording after timeout, regardless of quality
+                document.getElementById('startRecordingBtn').disabled = false;
+                
+                if (this.signalQuality >= this.qualityThreshold) {
+                    this.updateStatus('Timeout reached with GOOD signal quality - ready to record!', 'success');
                     document.getElementById('startRecordingBtn').textContent = '🔴 Start Recording';
                     document.getElementById('startRecordingBtn').style.background = '#2563eb';
-                    document.getElementById('startRecordingBtn').style.color = 'white';
+                } else {
+                    this.updateStatus('Timeout reached with POOR signal quality - you can still record or reset to try again.', 'warning');
+                    document.getElementById('startRecordingBtn').textContent = '⚠️ Record Anyway (Poor Quality)';
+                    document.getElementById('startRecordingBtn').style.background = '#f59e0b';
                 }
+                
+                document.getElementById('startRecordingBtn').style.color = 'white';
             }
             
             getCameraConstraints() {
@@ -1109,72 +1113,66 @@
                 const variance = signal.reduce((sum, val) => sum + (val - mean) ** 2, 0) / signal.length;
                 const std = Math.sqrt(variance);
                 
-                const dc = mean;  // Average brightness
-                const ac = std;   // Variation (heartbeat signal)
+                const dc = mean;  // Average brightness level
+                const ac = std;   // Variation (should be heartbeat)
                 const acDcRatio = dc > 0 ? ac / dc : 0;
                 
-                // CORRECTED PPG Quality Assessment Logic:
-                // HIGH pixel values = bright environmental light = BAD (no finger)
-                // LOW-MEDIUM pixel values = finger covering camera with flash = GOOD
+                // COMPLETELY CORRECTED PPG QUALITY LOGIC:
+                // For proper PPG measurement with flash:
+                // - Environmental light (no finger): HIGH pixel values (200+) → BAD quality (0-20%)
+                // - Finger properly placed: MEDIUM pixel values (60-150) → GOOD quality (80-100%)
+                // - Too dark/blocked: LOW pixel values (<30) → POOR quality (20-40%)
                 
-                let dcQuality = 0;
-                let coverageStatus = '';
+                let finalQuality = 0;
+                let statusMessage = '';
                 
-                // Completely reversed logic: Lower DC values are BETTER for PPG
-                if (dc > 180) {
-                    // Very bright - definitely no finger covering camera
-                    dcQuality = 0;
-                    coverageStatus = 'UNCOVERED - too bright (environmental light)';
-                } else if (dc > 120) {
-                    // Still too bright - partial coverage or no finger
-                    dcQuality = 0.1;
-                    coverageStatus = 'POORLY COVERED - still too bright';
-                } else if (dc >= 50 && dc <= 120) {
-                    // Good range - finger with flash penetration
-                    dcQuality = 1.0;
-                    coverageStatus = 'WELL COVERED - optimal brightness';
-                } else if (dc >= 25 && dc < 50) {
-                    // A bit dark but acceptable
-                    dcQuality = 0.7;
-                    coverageStatus = 'WELL COVERED - slightly dim';
-                } else if (dc >= 10 && dc < 25) {
-                    // Very dark - may be too much pressure or no flash
-                    dcQuality = 0.3;
-                    coverageStatus = 'TOO DARK - check flash or reduce pressure';
+                if (dc >= 200) {
+                    // Too bright - environmental light, no finger
+                    finalQuality = Math.max(0, 0.2 - (dc - 200) / 300); // Gets worse as brighter
+                    statusMessage = `ENVIRONMENTAL LIGHT DETECTED (${dc.toFixed(0)}) - Cover camera with finger`;
+                } else if (dc >= 150 && dc < 200) {
+                    // Still quite bright - partial coverage or bright environment
+                    finalQuality = 0.3;
+                    statusMessage = `TOO BRIGHT (${dc.toFixed(0)}) - Better finger coverage needed`;
+                } else if (dc >= 60 && dc < 150) {
+                    // OPTIMAL RANGE - finger with flash penetration
+                    // This should give the highest quality scores
+                    let baseQuality = 0.9;
+                    
+                    // Bonus for good AC/DC ratio (heartbeat detection)
+                    if (acDcRatio >= 0.01 && acDcRatio <= 0.05) {
+                        baseQuality = 1.0; // Perfect - has heartbeat signal
+                    } else if (acDcRatio >= 0.005 && acDcRatio <= 0.08) {
+                        baseQuality = 0.85; // Good signal
+                    }
+                    
+                    finalQuality = baseQuality;
+                    statusMessage = `OPTIMAL COVERAGE (${dc.toFixed(0)}) - Excellent for PPG`;
+                } else if (dc >= 30 && dc < 60) {
+                    // A bit dim but usable
+                    finalQuality = 0.6;
+                    statusMessage = `GOOD COVERAGE (${dc.toFixed(0)}) - Slightly dim but usable`;
+                } else if (dc >= 10 && dc < 30) {
+                    // Too dark - heavy pressure or no flash
+                    finalQuality = 0.3;
+                    statusMessage = `TOO DARK (${dc.toFixed(0)}) - Check flash or reduce pressure`;
                 } else {
-                    // Extremely dark - complete blockage
-                    dcQuality = 0.1;
-                    coverageStatus = 'BLOCKED - no light penetration';
+                    // Extremely dark - completely blocked
+                    finalQuality = 0.1;
+                    statusMessage = `BLOCKED (${dc.toFixed(0)}) - No light penetration`;
                 }
                 
-                // AC/DC Ratio Quality - pulsatile signal strength
-                let acDcQuality = 0;
-                if (acDcRatio >= 0.01 && acDcRatio <= 0.05) {
-                    acDcQuality = 1.0; // Excellent pulsatile signal (1-5%)
-                } else if (acDcRatio >= 0.005 && acDcRatio <= 0.08) {
-                    acDcQuality = 0.7; // Good signal
-                } else if (acDcRatio >= 0.002 && acDcRatio <= 0.1) {
-                    acDcQuality = 0.4; // Weak but detectable
-                } else {
-                    acDcQuality = 0; // No clear pulsatile signal
+                // Apply AC/DC ratio bonus more clearly for the optimal range
+                if (dc >= 60 && dc < 150 && acDcRatio >= 0.01 && acDcRatio <= 0.05) {
+                    finalQuality = Math.min(1.0, finalQuality + 0.1); // Bonus for heartbeat signal
                 }
                 
-                // Signal Stability
-                const stabilityQuality = this.calculateStabilityQuality();
+                this.signalQuality = finalQuality;
                 
-                // SNR calculation
+                // Calculate SNR for display
                 this.snr = ac > 0.01 ? 20 * Math.log10(dc / ac) : 0;
-                let snrQuality = Math.min(Math.max((this.snr - 15) / 15, 0), 1);
                 
-                // Combined quality score - heavily weight DC quality for proper finger placement
-                this.signalQuality = (
-                    dcQuality * 0.6 +        // 60% - finger coverage is most critical
-                    acDcQuality * 0.25 +     // 25% - pulsatile signal
-                    stabilityQuality * 0.1 + // 10% - stability
-                    snrQuality * 0.05        // 5% - SNR
-                );
-                
-                this.debugLog(`PPG Assessment: DC=${dc.toFixed(1)} (${coverageStatus}), AC/DC=${(acDcRatio*100).toFixed(2)}%, Quality=${(this.signalQuality * 100).toFixed(1)}%`);
+                this.debugLog(`PPG: ${statusMessage}, AC/DC: ${(acDcRatio*100).toFixed(2)}%, Final Quality: ${(this.signalQuality * 100).toFixed(1)}%`);
             }
             
             calculateStabilityQuality() {
