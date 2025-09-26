@@ -5,22 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PPG Signal Recorder</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 10px; }
-        .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; }
-        .config-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-        button { margin: 5px; padding: 8px 12px; }
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 10px; background: #f5f5f5; }
+        .section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; background: #fff; border-radius: 5px; }
+        .config-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        button { padding: 8px 12px; border: none; background: #007bff; color: #fff; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
         .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .metric { text-align: center; }
-        #recordingInProgress { color: red; font-weight: bold; display: none; }
-        #debugInfo { display: none; white-space: pre-wrap; font-size: 12px; }
-        #videoContainer { position: relative; }
-        #video { width: 100%; height: auto; border: 1px solid #ccc; }
+        .metric { text-align: center; font-size: 14px; }
+        #recordingInProgress { color: red; font-weight: bold; display: none; margin-top: 10px; }
+        #debugInfo { display: none; white-space: pre-wrap; font-size: 12px; background: #f8f8f8; padding: 10px; }
+        #videoContainer { position: relative; width: 100%; aspect-ratio: 4/3; }
+        #video { width: 100%; height: 100%; border: 1px solid #ccc; border-radius: 4px; }
         #roiOverlay { position: absolute; top: 0; left: 0; pointer-events: none; border: 2px solid red; box-sizing: border-box; }
-        #signalPlot { width: 100%; height: 200px; border: 1px solid #ccc; }
-        .tab button { background-color: #f1f1f1; border: 1px solid #ccc; cursor: pointer; }
-        .tab button.active { background-color: #ccc; }
+        #signalPlot { width: 100%; height: 200px; border: 1px solid #ccc; border-radius: 4px; }
+        .tab button { background: #f1f1f1; border: 1px solid #ccc; padding: 8px; flex: 1; }
+        .tab button.active { background: #007bff; color: #fff; }
+        .tab { display: flex; gap: 5px; }
         input[type="range"] { width: 60%; }
-        .slider-value { margin-left: 10px; }
+        .slider-value { margin-left: 10px; font-size: 14px; }
+        h3 { margin-top: 0; }
+        p { margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -30,8 +34,8 @@
     <div class="section">
         <h3>Device Configuration</h3>
         <div class="tab">
-            <button class="tablinks active" onclick="selectPlatform('Android')">Android</button>
-            <button class="tablinks" onclick="selectPlatform('iOS')">iOS</button>
+            <button class="tablinks active" onclick="selectPlatform(event, 'Android')">Android</button>
+            <button class="tablinks" onclick="selectPlatform(event, 'iOS')">iOS</button>
         </div>
     </div>
 
@@ -84,7 +88,7 @@
         <p id="monitorStatus">Android selected - click Start Camera</p>
         <div class="metrics">
             <div class="metric">
-                <label>Heart Rate</label><br>
+                <label>Heart Rate (bpm)</label><br>
                 <span id="heartRate">--</span>
             </div>
             <div class="metric">
@@ -160,7 +164,7 @@
 
         // State
         let platform = 'Android';
-        let zlo = 0;
+        let zlo = { r: 0, g: 0, b: 0 }; // Separate ZLO for each channel
         let signal = [];
         let startTime = 0;
         let recordingStartTime = 0;
@@ -168,16 +172,18 @@
         let recordingTimer = null;
         let isMonitoring = false;
         let isRecording = false;
+        let stream = null;
         const samplingRate = 30; // Hz
         const intervalMs = 1000 / samplingRate;
         let torchTrack = null;
 
         // Platform selection
-        function selectPlatform(selected) {
+        function selectPlatform(event, selected) {
             platform = selected;
             tabButtons.forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
             monitorStatusEl.textContent = `${selected} selected - click Start Camera`;
+            logDebug(`Platform selected: ${selected}`);
         }
 
         // Debug toggle
@@ -211,29 +217,51 @@
             } else {
                 roiOverlay.style.borderRadius = '0';
             }
+            logDebug(`ROI updated: x=${roiX.toFixed(0)}, y=${roiY.toFixed(0)}, w=${roiW.toFixed(0)}, h=${roiH.toFixed(0)}`);
         }
 
         // Start Camera (no flash)
         startCameraBtn.onclick = async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                }
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 30 }
+                    }
                 });
                 video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    video.play();
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    plotCanvas.width = plotCanvas.clientWidth;
-                    plotCanvas.height = 200;
-                    monitorStatusEl.textContent = 'Camera started. Calibrate ZLO (optional, no flash), then start SQM.';
-                    startMonitorBtn.disabled = false;
-                    torchTrack = stream.getVideoTracks()[0];
-                    updateROIOverlay();
-                    logDebug('Camera initialized: ' + canvas.width + 'x' + canvas.height);
+                video.onloadedmetadata = async () => {
+                    try {
+                        await video.play();
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        plotCanvas.width = plotCanvas.clientWidth;
+                        plotCanvas.height = 200;
+                        monitorStatusEl.textContent = 'Camera started. Calibrate ZLO (optional, no flash), then start SQM.';
+                        startMonitorBtn.disabled = false;
+                        calibrateBtn.disabled = false;
+                        torchTrack = stream.getVideoTracks()[0];
+                        try {
+                            await torchTrack.applyConstraints({ advanced: [{ torch: false }] });
+                            logDebug('Flash ensured off on camera start');
+                        } catch (e) {
+                            logDebug('Flash control not supported: ' + e.message);
+                        }
+                        updateROIOverlay();
+                        logDebug(`Camera initialized: ${canvas.width}x${canvas.height}, frameRate=30`);
+                    } catch (e) {
+                        alert('Video play failed: ' + e.message);
+                        logDebug('Video play error: ' + e.message);
+                    }
                 };
             } catch (err) {
-                alert('Camera access denied: ' + err.message);
+                alert('Camera access failed: ' + err.message + '. Please check permissions and try again.');
                 logDebug('Camera error: ' + err.message);
             }
         };
@@ -276,18 +304,29 @@
                     }
                 }
             }
-            return count > 0 ? { r: sumR / count - zlo, g: sumG / count - zlo, b: sumB / count - zlo } : { r: 0, g: 0, b: 0 };
+            return count > 0 ? {
+                r: sumR / count - zlo.r,
+                g: sumG / count - zlo.g,
+                b: sumB / count - zlo.b
+            } : { r: 0, g: 0, b: 0 };
         }
 
         // Sample loop
         function sample() {
-            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+            if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+                logDebug('Video not ready for sampling');
+                return;
+            }
             const { r, g, b } = getROIRGB();
             const time = (Date.now() - startTime) / 1000;
             signal.push({ time, r, g, b });
-            updateSQM(g); // Use green for SQM
+            updateSQM(g);
             plotSignal();
             logDebug(`Sample: t=${time.toFixed(3)}, r=${r.toFixed(2)}, g=${g.toFixed(2)}, b=${b.toFixed(2)}`);
+            if (isRecording && (Date.now() - recordingStartTime) >= parseInt(durationEl.value) * 1000) {
+                stopRecording();
+                stop(); // Stop SQM after recording
+            }
         }
 
         // Plot signal (green channel)
@@ -299,32 +338,35 @@
             const maxV = Math.max(...values);
             const range = maxV - minV || 1;
             plotCtx.beginPath();
-            plotCtx.strokeStyle = 'green';
+            plotCtx.strokeStyle = '#28a745';
             plotCtx.lineWidth = 2;
-            const step = plotCanvas.width / (signal.length - 1);
-            plotCtx.moveTo(0, plotCanvas.height - ((values[0] - minV) / range) * plotCanvas.height);
-            for (let i = 1; i < signal.length; i++) {
-                plotCtx.lineTo(i * step, plotCanvas.height - ((values[i] - minV) / range) * plotCanvas.height);
+            const step = plotCanvas.width / Math.min(signal.length - 1, samplingRate * 10); // Last 10s
+            const startIdx = Math.max(0, signal.length - samplingRate * 10);
+            plotCtx.moveTo(0, plotCanvas.height - ((values[startIdx] - minV) / range) * plotCanvas.height);
+            for (let i = startIdx + 1; i < signal.length; i++) {
+                const x = (i - startIdx) * step;
+                const y = plotCanvas.height - ((values[i] - minV) / range) * plotCanvas.height;
+                plotCtx.lineTo(x, y);
             }
             plotCtx.stroke();
         }
 
-        // Update SQM (using green)
-        function updateSQM(value) {
+        // Update SQM (using green channel)
+        function updateSQM(green) {
             if (signal.length < samplingRate) return;
-            const windowSize = Math.min(samplingRate * 10, signal.length);
+            const windowSize = Math.min(samplingRate * 10, signal.length); // Last 10s
             const window = signal.slice(-windowSize);
             const values = window.map(s => s.g);
             const dc = values.reduce((a, b) => a + b, 0) / values.length;
             const ac = values.map(v => v - dc);
             const strength = Math.max(...ac) - Math.min(...ac);
 
-            // Simple DFT
+            // Simple DFT for heart rate
             const fft = dft(ac);
             const N = ac.length;
             const df = samplingRate / N;
-            const lowBin = Math.round(0.8 / df);
-            const highBin = Math.round(3 / df);
+            const lowBin = Math.round(0.8 / df); // 0.8 Hz (48 bpm)
+            const highBin = Math.round(3 / df); // 3 Hz (180 bpm)
             let maxPower = 0;
             let maxK = 0;
             let signalPower = 0;
@@ -344,10 +386,10 @@
             const hr = maxK * df * 60;
             const snr = signalPower > 0 && noisePower > 0 ? 10 * Math.log10(signalPower / noisePower) : 0;
 
-            hrEl.textContent = hr.toFixed(1);
-            snrEl.textContent = snr.toFixed(1);
-            strengthEl.textContent = strength.toFixed(2);
-            dcEl.textContent = dc.toFixed(2);
+            hrEl.textContent = isFinite(hr) ? hr.toFixed(1) : '--';
+            snrEl.textContent = isFinite(snr) ? snr.toFixed(1) : '--';
+            strengthEl.textContent = isFinite(strength) ? strength.toFixed(2) : '--';
+            dcEl.textContent = isFinite(dc) ? dc.toFixed(2) : '--';
         }
 
         function dft(signal) {
@@ -367,7 +409,10 @@
 
         // Start Signal Monitor (flash on, 30s max)
         startMonitorBtn.onclick = async () => {
-            if (samplingTimer) return;
+            if (samplingTimer || !stream) {
+                alert('Camera not started or already monitoring.');
+                return;
+            }
             startTime = Date.now();
             signal = [];
             if (platform === 'Android' && torchTrack) {
@@ -376,42 +421,53 @@
                     logDebug('Flash enabled for SQM');
                 } catch (e) {
                     logDebug('Flash enable failed: ' + e.message);
+                    alert('Flash not available: ' + e.message);
                 }
             }
             samplingTimer = setInterval(sample, intervalMs);
             isMonitoring = true;
             startMonitorBtn.disabled = true;
             startRecordBtn.disabled = false;
-            calibrateBtn.disabled = true; // No calibrate during SQM
-            monitorStatusEl.textContent = 'SQM running... Cover camera with finger.';
+            calibrateBtn.disabled = true;
+            monitorStatusEl.textContent = 'SQM running... Cover camera with finger for PPG.';
             logDebug('SQM started');
-            // Auto stop SQM after 30s
             setTimeout(() => {
-                if (isMonitoring && !isRecording) stop();
+                if (isMonitoring && !isRecording) {
+                    stop();
+                    monitorStatusEl.textContent = 'SQM timed out after 30s.';
+                    logDebug('SQM timed out');
+                }
             }, 30000);
         };
 
         // Start Recording (duration defined, flash remains on)
         startRecordBtn.onclick = () => {
-            if (!isMonitoring || isRecording) return;
+            if (!isMonitoring || isRecording) {
+                alert('Start SQM first or recording already in progress.');
+                return;
+            }
             signal = []; // Reset for recording
             recordingStartTime = Date.now();
+            startTime = recordingStartTime;
             isRecording = true;
             recordingEl.style.display = 'block';
             downloadBtn.disabled = true;
             const durationMs = parseInt(durationEl.value) * 1000;
             recordingTimer = setTimeout(() => {
                 stopRecording();
-                stop(); // Terminate SQM after recording
+                stop();
             }, durationMs);
             logDebug('Recording started');
         };
 
         function stopRecording() {
-            clearTimeout(recordingTimer);
+            if (recordingTimer) {
+                clearTimeout(recordingTimer);
+                recordingTimer = null;
+            }
             isRecording = false;
             recordingEl.style.display = 'none';
-            downloadBtn.disabled = false;
+            downloadBtn.disabled = signal.length === 0;
             logDebug('Recording complete: ' + signal.length + ' samples');
         }
 
@@ -424,46 +480,58 @@
             }
             if (isRecording) stopRecording();
             if (torchTrack) {
-                torchTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
-                logDebug('Flash disabled');
+                torchTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(e => {
+                    logDebug('Flash disable failed: ' + e.message);
+                });
             }
             isMonitoring = false;
-            startMonitorBtn.disabled = false;
+            startMonitorBtn.disabled = !!stream;
             startRecordBtn.disabled = true;
-            calibrateBtn.disabled = false;
-            monitorStatusEl.textContent = 'Stopped.';
+            calibrateBtn.disabled = !stream;
+            monitorStatusEl.textContent = stream ? 'Stopped. Ready for ZLO or SQM.' : 'Stopped. Start Camera to continue.';
             logDebug('Stopped');
         }
 
         // Calibrate ZLO (no flash)
         calibrateBtn.onclick = async () => {
-            if (!video.srcObject || isMonitoring) {
+            if (!stream || isMonitoring) {
                 alert('Start camera first and stop SQM if running.');
                 return;
             }
             calibrateBtn.disabled = true;
             let wasTorchOn = false;
             if (platform === 'Android' && torchTrack) {
-                wasTorchOn = true;
-                await torchTrack.applyConstraints({ advanced: [{ torch: false }] });
-                logDebug('Flash disabled for ZLO');
+                try {
+                    await torchTrack.applyConstraints({ advanced: [{ torch: false }] });
+                    wasTorchOn = true;
+                    logDebug('Flash disabled for ZLO');
+                } catch (e) {
+                    logDebug('Flash disable failed for ZLO: ' + e.message);
+                }
             }
             const calStart = Date.now();
-            let calSum = 0;
+            let sumR = 0, sumG = 0, sumB = 0;
             let calCount = 0;
             const calInterval = setInterval(() => {
-                const { g } = getROIRGB();
-                calSum += g + zlo; // Raw without subtract
+                const { r, g, b } = getROIRGB();
+                sumR += r + zlo.r; // Raw values
+                sumG += g + zlo.g;
+                sumB += b + zlo.b;
                 calCount++;
-                if (Date.now() - calStart > 2000) {
+                if (Date.now() - calStart >= 2000) {
                     clearInterval(calInterval);
-                    zlo = calSum / calCount;
-                    alert('ZLO calibrated: ' + zlo.toFixed(2));
+                    zlo = {
+                        r: sumR / calCount,
+                        g: sumG / calCount,
+                        b: sumB / calCount
+                    };
+                    alert(`ZLO calibrated: R=${zlo.r.toFixed(2)}, G=${zlo.g.toFixed(2)}, B=${zlo.b.toFixed(2)}`);
                     calibrateBtn.disabled = false;
-                    logDebug('ZLO: ' + zlo.toFixed(2));
+                    logDebug(`ZLO: R=${zlo.r.toFixed(2)}, G=${zlo.g.toFixed(2)}, B=${zlo.b.toFixed(2)}`);
                     if (wasTorchOn) {
-                        await torchTrack.applyConstraints({ advanced: [{ torch: true }] });
-                        logDebug('Flash re-enabled after ZLO');
+                        torchTrack.applyConstraints({ advanced: [{ torch: true }] }).catch(e => {
+                            logDebug('Flash re-enable failed: ' + e.message);
+                        });
                     }
                 }
             }, 100);
@@ -473,7 +541,7 @@
         resetBtn.onclick = () => {
             stop();
             signal = [];
-            zlo = 0;
+            zlo = { r: 0, g: 0, b: 0 };
             startRecordBtn.disabled = true;
             downloadBtn.disabled = true;
             recordingEl.style.display = 'none';
@@ -486,7 +554,7 @@
             logDebug('Reset');
         };
 
-        // Download PPG in JSON format similar to attached
+        // Download PPG in JSON format matching ppgformat.txt
         downloadBtn.onclick = () => {
             if (signal.length === 0) {
                 alert('No data to download.');
@@ -494,16 +562,21 @@
             }
             const ppgSignals = signal.map(s => {
                 const signals = new Array(30).fill(0);
-                const positionsR = [0,3,6,9,12,15,18,21,24];
-                const positionsG = [1,4,7,10,13,16,19,22,25];
-                const positionsB = [2,5,8,11,14,17,20,23,26];
-                positionsR.forEach(pos => signals[pos] = s.r);
-                positionsG.forEach(pos => signals[pos] = s.g);
-                positionsB.forEach(pos => signals[pos] = s.b);
+                // Mimic the pattern: 10 sets of RGB, where each set has 3 values (R, G, B)
+                signals[0] = s.r; signals[1] = s.g; signals[2] = s.b;
+                signals[3] = s.r; signals[4] = s.g; signals[5] = s.b;
+                signals[6] = s.r; signals[7] = s.g; signals[8] = s.b;
+                signals[9] = s.r; signals[10] = s.g; signals[11] = s.b;
+                signals[12] = s.r; signals[13] = s.g; signals[14] = s.b;
+                signals[15] = s.r; signals[16] = s.g; signals[17] = s.b;
+                signals[18] = s.r; signals[19] = s.g; signals[20] = s.b;
+                signals[21] = s.r; signals[22] = s.g; signals[23] = s.b;
+                signals[24] = s.r; signals[25] = s.g; signals[26] = s.b;
+                signals[27] = 0; signals[28] = 0; signals[29] = 0;
                 return {
                     Timestamp: Math.floor(recordingStartTime * 1000 + s.time * 1000000),
                     Signals: signals,
-                    QualityWarning: false
+                    QualityWarning: s.g < 10 || s.g > 200 // Basic quality check
                 };
             });
             const data = {
@@ -513,7 +586,7 @@
                 PpgSignals: ppgSignals,
                 Calibration: null
             };
-            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -525,6 +598,13 @@
 
         // Update ROI on resize
         window.addEventListener('resize', updateROIOverlay);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
     </script>
 </body>
 </html>
