@@ -968,93 +968,137 @@
                 };
             }
             
+            // FIXED: Proper ZLO correction application
             applyZLOCorrection(signal) {
-                return {
+                // Apply Zero Light Offset correction to each channel
+                const corrected = {
                     red: Math.max(0, signal.red - this.zlo.red),
-                    green: Math.max(0, signal.green - this.zlo.green),
+                    green: Math.max(0, signal.green - this.zlo.green), 
                     blue: Math.max(0, signal.blue - this.zlo.blue)
                 };
+                
+                this.debugLog(`ZLO Applied - Raw: R=${signal.red.toFixed(1)}, G=${signal.green.toFixed(1)}, B=${signal.blue.toFixed(1)} | Corrected: R=${corrected.red.toFixed(1)}, G=${corrected.green.toFixed(1)}, B=${corrected.blue.toFixed(1)}`);
+                
+                return corrected;
             }
             
+            // FIXED: Proper PPG signal processing
             updateSignalBuffer(signal) {
                 const timestamp = Date.now();
                 
-                this.signalBuffer.push(signal.green);
+                // Use GREEN channel for PPG (best penetration and heartbeat detection)
+                const ppgValue = signal.green;
+                
+                // Add to signal buffer for PPG analysis
+                this.signalBuffer.push(ppgValue);
                 this.timeBuffer.push(timestamp);
                 
+                // Maintain buffer size (10 seconds at 30fps)
                 if (this.signalBuffer.length > this.bufferSize) {
                     this.signalBuffer.shift();
                     this.timeBuffer.shift();
                 }
                 
+                // Store for recording if active
                 if (this.isRecording) {
                     this.recordingData.push({
                         timestamp: timestamp,
                         red: signal.red,
                         green: signal.green,
                         blue: signal.blue,
+                        ppgValue: ppgValue,
                         quality: this.signalQuality
                     });
                 }
+                
+                // Debug PPG signal processing
+                if (this.signalBuffer.length > 0) {
+                    const recentDC = this.signalBuffer.slice(-30).reduce((a, b) => a + b, 0) / 30; // Last 1 second average
+                    this.debugLog(`PPG Processing - Green: ${ppgValue.toFixed(1)}, Recent DC: ${recentDC.toFixed(1)}, Buffer size: ${this.signalBuffer.length}`);
+                }
             }
             
-            // COMPLETELY FIXED: Signal quality logic
+            // COMPLETELY CORRECTED: Signal quality with proper PPG physics
             assessSignalQuality() {
                 if (this.signalBuffer.length < 60) {
                     this.signalQuality = 0;
                     return;
                 }
                 
-                const signal = this.signalBuffer.slice(-60);
-                const mean = signal.reduce((a, b) => a + b, 0) / signal.length;
-                const variance = signal.reduce((sum, val) => sum + (val - mean) ** 2, 0) / signal.length;
-                const std = Math.sqrt(variance);
-                
-                const dc = mean;
-                const ac = std;
+                // Calculate PPG signal characteristics
+                const signal = this.signalBuffer.slice(-60); // Last 2 seconds
+                const dc = signal.reduce((a, b) => a + b, 0) / signal.length; // DC component
+                const variance = signal.reduce((sum, val) => sum + (val - dc) ** 2, 0) / signal.length;
+                const ac = Math.sqrt(variance); // AC component (pulsatile variations)
                 const acDcRatio = dc > 0 ? ac / dc : 0;
                 
-                // CORRECTED PPG LOGIC:
-                // HIGH pixel values (200+) = environmental light = BAD (0-20%)
-                // MEDIUM pixel values (60-150) = finger with flash = GOOD (80-100%)
-                // LOW pixel values (<30) = blocked/no flash = POOR (20-40%)
+                // CORRECTED RANGES based on actual PPG physics:
+                // When finger covers smartphone camera with flash, pixel values are typically LOW-MEDIUM
+                // When uncovered, camera sees bright environment giving HIGH pixel values
                 
-                let finalQuality = 0;
+                let qualityScore = 0;
                 let statusMessage = '';
+                let coverageAnalysis = '';
                 
-                if (dc >= 200) {
-                    // Too bright - environmental light, no finger
-                    finalQuality = Math.max(0, 0.2 - (dc - 200) / 500);
-                    statusMessage = `ENVIRONMENTAL LIGHT (${dc.toFixed(0)}) - Cover camera with finger`;
-                } else if (dc >= 150 && dc < 200) {
-                    // Still bright - partial coverage
-                    finalQuality = 0.3;
-                    statusMessage = `TOO BRIGHT (${dc.toFixed(0)}) - Better coverage needed`;
-                } else if (dc >= 60 && dc < 150) {
-                    // OPTIMAL RANGE - finger with flash
-                    finalQuality = 0.9;
-                    if (acDcRatio >= 0.01 && acDcRatio <= 0.05) {
-                        finalQuality = 1.0; // Perfect with heartbeat
+                if (dc >= 150) {
+                    // HIGH VALUES = Uncovered camera seeing bright environment = BAD
+                    qualityScore = 0.05;
+                    coverageAnalysis = 'UNCOVERED CAMERA';
+                    statusMessage = `Environmental light detected (DC=${dc.toFixed(0)}) - Place finger over camera`;
+                    
+                } else if (dc >= 100 && dc < 150) {
+                    // MEDIUM-HIGH VALUES = Partial coverage = POOR
+                    qualityScore = 0.2;
+                    coverageAnalysis = 'PARTIAL COVERAGE';
+                    statusMessage = `Partial finger coverage (DC=${dc.toFixed(0)}) - Cover camera completely`;
+                    
+                } else if (dc >= 25 && dc < 100) {
+                    // LOW-MEDIUM VALUES = Good finger coverage with flash = GOOD
+                    qualityScore = 0.8;
+                    coverageAnalysis = 'GOOD FINGER COVERAGE';
+                    statusMessage = `Good finger placement (DC=${dc.toFixed(0)}) - Optimal for PPG`;
+                    
+                    // Bonus for detecting heartbeat signal
+                    if (acDcRatio >= 0.01 && acDcRatio <= 0.1) {
+                        qualityScore = 0.95;
+                        statusMessage += ' with heartbeat detected';
                     }
-                    statusMessage = `OPTIMAL COVERAGE (${dc.toFixed(0)}) - Excellent for PPG`;
-                } else if (dc >= 30 && dc < 60) {
-                    // A bit dim but usable
-                    finalQuality = 0.6;
-                    statusMessage = `GOOD COVERAGE (${dc.toFixed(0)}) - Slightly dim`;
-                } else if (dc >= 10 && dc < 30) {
-                    // Too dark
-                    finalQuality = 0.3;
-                    statusMessage = `TOO DARK (${dc.toFixed(0)}) - Check flash`;
+                    
+                } else if (dc >= 10 && dc < 25) {
+                    // LOW VALUES = Heavy pressure or weak flash = FAIR
+                    qualityScore = 0.4;
+                    coverageAnalysis = 'HEAVY PRESSURE';
+                    statusMessage = `Heavy finger pressure (DC=${dc.toFixed(0)}) - Reduce pressure slightly`;
+                    
                 } else {
-                    // Blocked
-                    finalQuality = 0.1;
-                    statusMessage = `BLOCKED (${dc.toFixed(0)}) - No light`;
+                    // VERY LOW VALUES = Completely blocked = BAD
+                    qualityScore = 0.1;
+                    coverageAnalysis = 'COMPLETELY BLOCKED';
+                    statusMessage = `Camera blocked (DC=${dc.toFixed(0)}) - Check flash or finger position`;
                 }
                 
-                this.signalQuality = finalQuality;
+                // Apply stability bonus
+                const stabilityBonus = this.calculateStabilityQuality() * 0.05;
+                qualityScore = Math.min(1.0, qualityScore + stabilityBonus);
+                
+                this.signalQuality = qualityScore;
                 this.snr = ac > 0.01 ? 20 * Math.log10(dc / ac) : 0;
                 
-                this.debugLog(`${statusMessage}, AC/DC: ${(acDcRatio*100).toFixed(2)}%, Quality: ${(finalQuality * 100).toFixed(1)}%`);
+                // Store detailed analysis for display
+                this.currentCoverageStatus = statusMessage;
+                this.currentCoverageType = coverageAnalysis;
+                
+                // Enhanced debug logging
+                this.debugLog(`PPG Analysis: ${coverageAnalysis}, DC=${dc.toFixed(1)}, AC=${ac.toFixed(2)}, AC/DC=${(acDcRatio*100).toFixed(2)}%, Quality=${(qualityScore*100).toFixed(1)}%`);
+                
+                // Log the actual PPG signal processing
+                if (this.signalBuffer.length >= 30) {
+                    const recentSignal = this.signalBuffer.slice(-30);
+                    const recentMax = Math.max(...recentSignal);
+                    const recentMin = Math.min(...recentSignal);
+                    const pulsatileAmplitude = recentMax - recentMin;
+                    this.debugLog(`PPG Signal: Recent amplitude=${pulsatileAmplitude.toFixed(1)}, Max=${recentMax.toFixed(1)}, Min=${recentMin.toFixed(1)}`);
+                }
             }
             
             calculateStabilityQuality() {
@@ -1070,25 +1114,82 @@
                 return Math.max(0, stability);
             }
             
-            // FIXED: Heart rate calculation
+            // FIXED: Proper heart rate detection from PPG signal
             calculateHeartRate() {
-                if (this.signalBuffer.length < 90) return 0;
+                if (this.signalBuffer.length < 120) return 0; // Need at least 4 seconds
                 
-                const signal = this.signalBuffer.slice(-90);
+                // Use recent PPG signal for heart rate calculation
+                const signal = this.signalBuffer.slice(-120); // Last 4 seconds at 30fps
                 const sampleRate = 30;
                 
+                // Normalize signal to remove DC drift
+                const mean = signal.reduce((a, b) => a + b, 0) / signal.length;
+                const normalizedSignal = signal.map(val => val - mean);
+                
+                // Find peaks in the PPG signal
+                const peaks = this.findPPGPeaks(normalizedSignal);
+                
+                if (peaks.length < 2) {
+                    this.debugLog(`Heart Rate: Insufficient peaks (${peaks.length}) for calculation`);
+                    return 0;
+                }
+                
+                // Calculate inter-peak intervals
+                const intervals = [];
+                for (let i = 1; i < peaks.length; i++) {
+                    intervals.push(peaks[i] - peaks[i-1]);
+                }
+                
+                // Remove outlier intervals (likely noise)
+                intervals.sort((a, b) => a - b);
+                const validIntervals = intervals.slice(
+                    Math.floor(intervals.length * 0.1), 
+                    Math.floor(intervals.length * 0.9)
+                );
+                
+                if (validIntervals.length === 0) {
+                    this.debugLog('Heart Rate: No valid intervals after outlier removal');
+                    return 0;
+                }
+                
+                // Calculate average interval
+                const avgInterval = validIntervals.reduce((a, b) => a + b, 0) / validIntervals.length;
+                
+                // Convert to BPM
+                const bpm = (60 * sampleRate) / avgInterval;
+                
+                // Validate physiological range (40-180 BPM)
+                if (bpm >= 40 && bpm <= 180) {
+                    this.debugLog(`Heart Rate: ${bpm.toFixed(1)} BPM (${peaks.length} peaks, avg interval: ${avgInterval.toFixed(1)} samples)`);
+                    return Math.round(bpm);
+                } else {
+                    this.debugLog(`Heart Rate: ${bpm.toFixed(1)} BPM out of range (40-180), rejecting`);
+                    return 0;
+                }
+            }
+            
+            // FIXED: Improved PPG peak detection
+            findPPGPeaks(signal) {
                 const peaks = [];
-                const minPeakDistance = 15;
-                const threshold = this.calculateDynamicThreshold(signal);
+                const minPeakDistance = 12; // Minimum ~0.4 seconds between peaks (150 BPM max)
+                const maxPeakDistance = 60; // Maximum ~2 seconds between peaks (30 BPM min)
+                
+                // Calculate dynamic threshold based on signal characteristics
+                const signalStd = this.calculateStandardDeviation(signal);
+                const threshold = signalStd * 0.3; // Peaks must be above 30% of standard deviation
                 
                 let lastPeakIndex = -minPeakDistance;
                 
+                // Find local maxima that exceed threshold
                 for (let i = 2; i < signal.length - 2; i++) {
-                    if (signal[i] > signal[i-1] && 
-                        signal[i] > signal[i+1] && 
-                        signal[i] > signal[i-2] && 
-                        signal[i] > signal[i+2] && 
-                        signal[i] > threshold &&
+                    const current = signal[i];
+                    
+                    // Check if this is a local maximum
+                    if (current > signal[i-1] && 
+                        current > signal[i+1] && 
+                        current > signal[i-2] && 
+                        current > signal[i+2] && 
+                        current > threshold &&
                         (i - lastPeakIndex) >= minPeakDistance) {
                         
                         peaks.push(i);
@@ -1096,24 +1197,15 @@
                     }
                 }
                 
-                if (peaks.length < 2) return 0;
-                
-                const intervals = [];
-                for (let i = 1; i < peaks.length; i++) {
-                    intervals.push(peaks[i] - peaks[i-1]);
-                }
-                
-                intervals.sort((a, b) => a - b);
-                const medianInterval = intervals[Math.floor(intervals.length / 2)];
-                const bpm = (60 * sampleRate) / medianInterval;
-                
-                return (bpm >= 50 && bpm <= 150) ? Math.round(bpm) : 0;
+                this.debugLog(`Peak Detection: Found ${peaks.length} peaks, threshold: ${threshold.toFixed(3)}, signal std: ${signalStd.toFixed(3)}`);
+                return peaks;
             }
             
-            calculateDynamicThreshold(signal) {
-                const sorted = [...signal].sort((a, b) => a - b);
-                const percentile75Index = Math.floor(sorted.length * 0.75);
-                return sorted[percentile75Index];
+            calculateStandardDeviation(values) {
+                const mean = values.reduce((a, b) => a + b, 0) / values.length;
+                const squaredDiffs = values.map(val => (val - mean) ** 2);
+                const avgSquaredDiff = squaredDiffs.reduce((a, b) => a + b, 0) / squaredDiffs.length;
+                return Math.sqrt(avgSquaredDiff);
             }
             
             updatePPGDisplay() {
@@ -1170,45 +1262,62 @@
                 }
             }
             
-            // FIXED: Metrics with proper signal strength for covered camera
+            // DEBUG: Show actual pixel values to understand the problem
             updateMetrics() {
                 this.heartRate = this.calculateHeartRate();
                 
                 document.getElementById('heartRate').textContent = this.heartRate > 0 ? `${this.heartRate} BPM` : '--';
                 document.getElementById('snrValue').textContent = this.snr > 0 ? `${this.snr.toFixed(1)}` : '--';
                 
-                // FIXED: Signal strength shows high values for finger coverage
-                let signalStrength = 0;
+                // SHOW ACTUAL VALUES for debugging
+                let debugInfo = '';
                 if (this.signalBuffer.length > 0) {
                     const currentDC = this.signalBuffer[this.signalBuffer.length - 1];
-                    if (currentDC >= 60 && currentDC <= 150) {
-                        // GOOD coverage should show HIGH strength
-                        signalStrength = Math.round(((150 - Math.abs(currentDC - 105)) / 45) * 100);
-                        signalStrength = Math.min(Math.max(signalStrength, 70), 100);
-                    } else if (currentDC >= 30 && currentDC < 200) {
-                        signalStrength = Math.max(20, 60 - Math.abs(currentDC - 105) / 5);
-                    } else {
-                        signalStrength = 10; // Poor
-                    }
+                    const recentValues = this.signalBuffer.slice(-10);
+                    const recentMax = Math.max(...recentValues);
+                    const recentMin = Math.min(...recentValues);
+                    
+                    debugInfo = `DC: ${currentDC.toFixed(1)} | Range: ${recentMin.toFixed(1)}-${recentMax.toFixed(1)}`;
+                    
+                    // Show actual signal strength based on current implementation
+                    let signalStrength = Math.round((currentDC / 255) * 100);
+                    document.getElementById('signalStrength').textContent = `${signalStrength}% (Raw: ${currentDC.toFixed(1)})`;
+                } else {
+                    document.getElementById('signalStrength').textContent = '--';
                 }
-                document.getElementById('signalStrength').textContent = `${signalStrength}%`;
                 
-                const dcComponent = this.signalBuffer.length > 0 ? 
-                    this.signalBuffer[this.signalBuffer.length - 1].toFixed(1) : '--';
-                document.getElementById('dcComponent').textContent = dcComponent;
+                document.getElementById('dcComponent').textContent = debugInfo || '--';
                 
-                // Update quality bar
+                // Update quality bar with actual percentage
                 const qualityBar = document.getElementById('qualityBar');
                 const qualityPercent = Math.round(this.signalQuality * 100);
                 qualityBar.style.width = `${qualityPercent}%`;
                 
+                // Show what the algorithm is actually thinking
                 let qualityLabel = 'Poor';
                 if (qualityPercent >= 80) qualityLabel = 'Excellent';
                 else if (qualityPercent >= 60) qualityLabel = 'Good';
                 else if (qualityPercent >= 40) qualityLabel = 'Fair';
                 
                 if (!this.sqmTimeoutTimer && !this.sqmCountdownTimer && this.isProcessing) {
-                    document.getElementById('qualityText').textContent = `${qualityLabel} (${qualityPercent}%)`;
+                    const currentStatus = this.currentCoverageStatus || `${qualityLabel} (${qualityPercent}%)`;
+                    document.getElementById('qualityText').textContent = currentStatus;
+                }
+                
+                // Enhanced debug output showing actual values vs thresholds
+                if (this.signalBuffer.length > 0) {
+                    const currentDC = this.signalBuffer[this.signalBuffer.length - 1];
+                    this.debugLog(`ACTUAL VALUES: DC=${currentDC.toFixed(1)}, Quality=${qualityPercent}%, Status="${this.currentCoverageStatus}"`);
+                    
+                    // Show threshold analysis
+                    let thresholdAnalysis = '';
+                    if (currentDC >= 150) thresholdAnalysis = 'Above 150 (Uncovered)';
+                    else if (currentDC >= 100) thresholdAnalysis = 'Range 100-150 (Partial)';
+                    else if (currentDC >= 25) thresholdAnalysis = 'Range 25-100 (Good)';
+                    else if (currentDC >= 10) thresholdAnalysis = 'Range 10-25 (Heavy)';
+                    else thresholdAnalysis = 'Below 10 (Blocked)';
+                    
+                    this.debugLog(`THRESHOLD CHECK: ${thresholdAnalysis}`);
                 }
             }
             
