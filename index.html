@@ -30,8 +30,8 @@
     <div class="section">
         <h3>Device Configuration</h3>
         <div class="tab">
-            <button class="tablinks active" onclick="selectPlatform(event, 'Android')">Android</button>
-            <button class="tablinks" onclick="selectPlatform(event, 'iOS')">iOS</button>
+            <button class="tablinks active" onclick="selectPlatform('Android')">Android</button>
+            <button class="tablinks" onclick="selectPlatform('iOS')">iOS</button>
         </div>
     </div>
 
@@ -46,28 +46,36 @@
         </div>
         <div class="config-group">
             <label>ROI X Position:</label>
-            <input type="range" id="roiX" min="0" max="100" value="25" oninput="updateROIValue('roiXValue', this.value); updateROIOverlay()">
+            <input type="range" id="roiX" min="0" max="100" value="25" oninput="updateSliderValue('roiXValue', this.value); updateROIOverlay()">
             <span id="roiXValue" class="slider-value">25%</span>
         </div>
         <div class="config-group">
             <label>ROI Y Position:</label>
-            <input type="range" id="roiY" min="0" max="100" value="25" oninput="updateROIValue('roiYValue', this.value); updateROIOverlay()">
+            <input type="range" id="roiY" min="0" max="100" value="25" oninput="updateSliderValue('roiYValue', this.value); updateROIOverlay()">
             <span id="roiYValue" class="slider-value">25%</span>
         </div>
         <div class="config-group">
             <label>ROI Width:</label>
-            <input type="range" id="roiWidth" min="10" max="100" value="50" oninput="updateROIValue('roiWidthValue', this.value); updateROIOverlay()">
+            <input type="range" id="roiWidth" min="10" max="100" value="50" oninput="updateSliderValue('roiWidthValue', this.value); updateROIOverlay()">
             <span id="roiWidthValue" class="slider-value">50%</span>
         </div>
         <div class="config-group">
             <label>ROI Height:</label>
-            <input type="range" id="roiHeight" min="10" max="100" value="50" oninput="updateROIValue('roiHeightValue', this.value); updateROIOverlay()">
+            <input type="range" id="roiHeight" min="10" max="100" value="50" oninput="updateSliderValue('roiHeightValue', this.value); updateROIOverlay()">
             <span id="roiHeightValue" class="slider-value">50%</span>
         </div>
         <div class="config-group">
             <label>Recording Duration:</label>
-            <input type="range" id="duration" min="5" max="60" value="10" oninput="updateROIValue('durationValue', this.value)">
+            <input type="range" id="duration" min="5" max="60" value="10" oninput="updateSliderValue('durationValue', this.value)">
             <span id="durationValue" class="slider-value">10s</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Camera Preview</h3>
+        <div id="videoContainer">
+            <video id="video" autoplay muted playsinline></video>
+            <div id="roiOverlay"></div>
         </div>
     </div>
 
@@ -92,6 +100,8 @@
                 <span id="dcComponent">--</span>
             </div>
         </div>
+        <h4>PPG Signal Waveform</h4>
+        <canvas id="signalPlot"></canvas>
     </div>
 
     <div class="section">
@@ -114,14 +124,17 @@
         <div id="debugInfo"></div>
     </div>
 
-    <video id="video" autoplay muted playsinline style="display: none;"></video>
     <canvas id="canvas" style="display: none;"></canvas>
 
     <script>
         // DOM Elements
         const video = document.getElementById('video');
+        const videoContainer = document.getElementById('videoContainer');
+        const roiOverlay = document.getElementById('roiOverlay');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const plotCanvas = document.getElementById('signalPlot');
+        const plotCtx = plotCanvas.getContext('2d');
         const startCameraBtn = document.getElementById('startCamera');
         const startMonitorBtn = document.getElementById('startSignalMonitor');
         const startRecordBtn = document.getElementById('startRecording');
@@ -143,16 +156,29 @@
         const roiWidthEl = document.getElementById('roiWidth');
         const roiHeightEl = document.getElementById('roiHeight');
         const durationEl = document.getElementById('duration');
+        const tabButtons = document.querySelectorAll('.tablinks');
 
         // State
+        let platform = 'Android';
         let zlo = 0;
         let signal = [];
         let startTime = 0;
+        let recordingStartTime = 0;
         let samplingTimer = null;
+        let recordingTimer = null;
         let isMonitoring = false;
         let isRecording = false;
         const samplingRate = 30; // Hz
         const intervalMs = 1000 / samplingRate;
+        let torchTrack = null;
+
+        // Platform selection
+        function selectPlatform(selected) {
+            platform = selected;
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            monitorStatusEl.textContent = `${selected} selected - click Start Camera`;
+        }
 
         // Debug toggle
         toggleDebugBtn.onclick = () => {
@@ -164,11 +190,30 @@
         }
 
         // Update slider value display
-        function updateROIValue(id, value) {
+        function updateSliderValue(id, value) {
             document.getElementById(id).textContent = id.includes('duration') ? value + 's' : value + '%';
         }
 
-        // Start Camera
+        // Update ROI Overlay
+        function updateROIOverlay() {
+            if (!video.videoWidth) return;
+            const vidRect = video.getBoundingClientRect();
+            const roiX = (parseFloat(roiXEl.value) / 100) * vidRect.width;
+            const roiY = (parseFloat(roiYEl.value) / 100) * vidRect.height;
+            const roiW = (parseFloat(roiWidthEl.value) / 100) * vidRect.width;
+            const roiH = (parseFloat(roiHeightEl.value) / 100) * vidRect.height;
+            roiOverlay.style.left = `${roiX}px`;
+            roiOverlay.style.top = `${roiY}px`;
+            roiOverlay.style.width = `${roiW}px`;
+            roiOverlay.style.height = `${roiH}px`;
+            if (roiTypeEl.value === 'Circular') {
+                roiOverlay.style.borderRadius = '50%';
+            } else {
+                roiOverlay.style.borderRadius = '0';
+            }
+        }
+
+        // Start Camera (no flash)
         startCameraBtn.onclick = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -176,10 +221,15 @@
                 });
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
+                    video.play();
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    monitorStatusEl.textContent = 'Camera started. Calibrate ZLO by covering camera fully, then start monitor.';
+                    plotCanvas.width = plotCanvas.clientWidth;
+                    plotCanvas.height = 200;
+                    monitorStatusEl.textContent = 'Camera started. Calibrate ZLO (optional, no flash), then start SQM.';
                     startMonitorBtn.disabled = false;
+                    torchTrack = stream.getVideoTracks()[0];
+                    updateROIOverlay();
                     logDebug('Camera initialized: ' + canvas.width + 'x' + canvas.height);
                 };
             } catch (err) {
@@ -188,8 +238,8 @@
             }
         };
 
-        // Sample ROI (green channel average)
-        function getROIAverage() {
+        // Get ROI RGB averages
+        function getROIRGB() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
@@ -200,7 +250,7 @@
             const roiW = (parseFloat(roiWidthEl.value) / 100) * canvas.width;
             const roiH = (parseFloat(roiHeightEl.value) / 100) * canvas.height;
 
-            let sum = 0;
+            let sumR = 0, sumG = 0, sumB = 0;
             let count = 0;
 
             const cx = roiX + roiW / 2;
@@ -212,62 +262,64 @@
                     let include = false;
                     if (roiType === 'Rectangle') {
                         include = true;
-                    } else { // Circular
+                    } else {
                         const dx = px - cx;
                         const dy = py - cy;
                         if (dx * dx + dy * dy <= r * r) include = true;
                     }
                     if (include) {
                         const idx = (py * canvas.width + px) * 4;
-                        sum += data[idx + 1]; // Green channel
+                        sumR += data[idx];
+                        sumG += data[idx + 1];
+                        sumB += data[idx + 2];
                         count++;
                     }
                 }
             }
-            return count > 0 ? sum / count : 0;
+            return count > 0 ? { r: sumR / count - zlo, g: sumG / count - zlo, b: sumB / count - zlo } : { r: 0, g: 0, b: 0 };
         }
 
         // Sample loop
         function sample() {
             if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-            const rawValue = getROIAverage();
+            const { r, g, b } = getROIRGB();
             const time = (Date.now() - startTime) / 1000;
-            const value = rawValue - zlo; // Respect ZLO
-            signal.push({ time, value });
-            updateSQM();
-            logDebug(`Sample: t=${time.toFixed(3)}, raw=${rawValue.toFixed(1)}, ppg=${value.toFixed(1)}`);
-            if (isRecording && time >= parseInt(durationEl.value)) {
-                stopRecording();
-            }
+            signal.push({ time, r, g, b });
+            updateSQM(g); // Use green for SQM
+            plotSignal();
+            logDebug(`Sample: t=${time.toFixed(3)}, r=${r.toFixed(2)}, g=${g.toFixed(2)}, b=${b.toFixed(2)}`);
         }
 
-        // Simple DFT (FFT approximation for power spectrum)
-        function dft(signal) {
-            const N = signal.length;
-            const freqs = new Array(N).fill(0);
-            for (let k = 0; k < N; k++) {
-                let re = 0, im = 0;
-                for (let n = 0; n < N; n++) {
-                    const angle = 2 * Math.PI * k * n / N;
-                    re += signal[n] * Math.cos(angle);
-                    im -= signal[n] * Math.sin(angle);
-                }
-                freqs[k] = Math.sqrt(re * re + im * im) / N;
+        // Plot signal (green channel)
+        function plotSignal() {
+            plotCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
+            if (signal.length < 2) return;
+            const values = signal.map(s => s.g);
+            const minV = Math.min(...values);
+            const maxV = Math.max(...values);
+            const range = maxV - minV || 1;
+            plotCtx.beginPath();
+            plotCtx.strokeStyle = 'green';
+            plotCtx.lineWidth = 2;
+            const step = plotCanvas.width / (signal.length - 1);
+            plotCtx.moveTo(0, plotCanvas.height - ((values[0] - minV) / range) * plotCanvas.height);
+            for (let i = 1; i < signal.length; i++) {
+                plotCtx.lineTo(i * step, plotCanvas.height - ((values[i] - minV) / range) * plotCanvas.height);
             }
-            return freqs;
+            plotCtx.stroke();
         }
 
-        // Update SQM
-        function updateSQM() {
-            if (signal.length < samplingRate) return; // Min 1s
-            const windowSize = Math.min(samplingRate * 10, signal.length); // Up to 10s
+        // Update SQM (using green)
+        function updateSQM(value) {
+            if (signal.length < samplingRate) return;
+            const windowSize = Math.min(samplingRate * 10, signal.length);
             const window = signal.slice(-windowSize);
-            const values = window.map(s => s.value);
+            const values = window.map(s => s.g);
             const dc = values.reduce((a, b) => a + b, 0) / values.length;
             const ac = values.map(v => v - dc);
             const strength = Math.max(...ac) - Math.min(...ac);
 
-            // FFT for HR and SNR
+            // Simple DFT
             const fft = dft(ac);
             const N = ac.length;
             const df = samplingRate / N;
@@ -298,32 +350,65 @@
             dcEl.textContent = dc.toFixed(2);
         }
 
-        // Start Signal Monitor
-        startMonitorBtn.onclick = () => {
+        function dft(signal) {
+            const N = signal.length;
+            const freqs = new Array(N).fill(0);
+            for (let k = 0; k < N; k++) {
+                let re = 0, im = 0;
+                for (let n = 0; n < N; n++) {
+                    const angle = 2 * Math.PI * k * n / N;
+                    re += signal[n] * Math.cos(angle);
+                    im -= signal[n] * Math.sin(angle);
+                }
+                freqs[k] = Math.sqrt(re * re + im * im) / N;
+            }
+            return freqs;
+        }
+
+        // Start Signal Monitor (flash on, 30s max)
+        startMonitorBtn.onclick = async () => {
             if (samplingTimer) return;
             startTime = Date.now();
             signal = [];
+            if (platform === 'Android' && torchTrack) {
+                try {
+                    await torchTrack.applyConstraints({ advanced: [{ torch: true }] });
+                    logDebug('Flash enabled for SQM');
+                } catch (e) {
+                    logDebug('Flash enable failed: ' + e.message);
+                }
+            }
             samplingTimer = setInterval(sample, intervalMs);
             isMonitoring = true;
             startMonitorBtn.disabled = true;
             startRecordBtn.disabled = false;
-            calibrateBtn.disabled = false;
-            monitorStatusEl.textContent = 'Monitoring... Cover camera with finger for PPG.';
-            logDebug('Monitoring started');
+            calibrateBtn.disabled = true; // No calibrate during SQM
+            monitorStatusEl.textContent = 'SQM running... Cover camera with finger.';
+            logDebug('SQM started');
+            // Auto stop SQM after 30s
+            setTimeout(() => {
+                if (isMonitoring && !isRecording) stop();
+            }, 30000);
         };
 
-        // Start Recording
+        // Start Recording (duration defined, flash remains on)
         startRecordBtn.onclick = () => {
             if (!isMonitoring || isRecording) return;
-            signal = []; // Reset for new recording
-            startTime = Date.now();
+            signal = []; // Reset for recording
+            recordingStartTime = Date.now();
             isRecording = true;
             recordingEl.style.display = 'block';
             downloadBtn.disabled = true;
+            const durationMs = parseInt(durationEl.value) * 1000;
+            recordingTimer = setTimeout(() => {
+                stopRecording();
+                stop(); // Terminate SQM after recording
+            }, durationMs);
             logDebug('Recording started');
         };
 
         function stopRecording() {
+            clearTimeout(recordingTimer);
             isRecording = false;
             recordingEl.style.display = 'none';
             downloadBtn.disabled = false;
@@ -338,32 +423,37 @@
                 samplingTimer = null;
             }
             if (isRecording) stopRecording();
+            if (torchTrack) {
+                torchTrack.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+                logDebug('Flash disabled');
+            }
             isMonitoring = false;
             startMonitorBtn.disabled = false;
             startRecordBtn.disabled = true;
+            calibrateBtn.disabled = false;
             monitorStatusEl.textContent = 'Stopped.';
             logDebug('Stopped');
         }
 
-        // Calibrate ZLO (cover camera fully for 2s)
+        // Calibrate ZLO (no flash)
         calibrateBtn.onclick = async () => {
-            if (!video.srcObject) {
-                alert('Start camera first.');
+            if (!video.srcObject || isMonitoring) {
+                alert('Start camera first and stop SQM if running.');
                 return;
             }
             calibrateBtn.disabled = true;
-            let originalTorch = false;
+            let wasTorchOn = false;
             if (platform === 'Android' && torchTrack) {
-                originalTorch = true;
+                wasTorchOn = true;
                 await torchTrack.applyConstraints({ advanced: [{ torch: false }] });
-                logDebug('Torch disabled for ZLO');
+                logDebug('Flash disabled for ZLO');
             }
             const calStart = Date.now();
             let calSum = 0;
             let calCount = 0;
             const calInterval = setInterval(() => {
-                const avg = getROIAverage();
-                calSum += avg;
+                const { g } = getROIRGB();
+                calSum += g + zlo; // Raw without subtract
                 calCount++;
                 if (Date.now() - calStart > 2000) {
                     clearInterval(calInterval);
@@ -371,9 +461,9 @@
                     alert('ZLO calibrated: ' + zlo.toFixed(2));
                     calibrateBtn.disabled = false;
                     logDebug('ZLO: ' + zlo.toFixed(2));
-                    if (originalTorch) {
-                        torchTrack.applyConstraints({ advanced: [{ torch: true }] });
-                        logDebug('Torch re-enabled after ZLO');
+                    if (wasTorchOn) {
+                        await torchTrack.applyConstraints({ advanced: [{ torch: true }] });
+                        logDebug('Flash re-enabled after ZLO');
                     }
                 }
             }, 100);
@@ -391,23 +481,33 @@
             snrEl.textContent = '--';
             strengthEl.textContent = '--';
             dcEl.textContent = '--';
-            monitorStatusEl.textContent = 'Reset. Click Start Camera.';
+            monitorStatusEl.textContent = `${platform} selected - click Start Camera`;
+            plotCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
             logDebug('Reset');
         };
 
-        // Download PPG as JSON matching attached format
+        // Download PPG in JSON format similar to attached
         downloadBtn.onclick = () => {
             if (signal.length === 0) {
                 alert('No data to download.');
                 return;
             }
-            const ppgSignals = signal.map(s => ({
-                Timestamp: Math.floor(startTime * 1000 + s.time * 1000000), // Approximate big timestamp
-                Signals: [s.value].concat(new Array(29).fill(0)), // Single value + 29 zeros to match length 30
-                QualityWarning: false
-            }));
+            const ppgSignals = signal.map(s => {
+                const signals = new Array(30).fill(0);
+                const positionsR = [0,3,6,9,12,15,18,21,24];
+                const positionsG = [1,4,7,10,13,16,19,22,25];
+                const positionsB = [2,5,8,11,14,17,20,23,26];
+                positionsR.forEach(pos => signals[pos] = s.r);
+                positionsG.forEach(pos => signals[pos] = s.g);
+                positionsB.forEach(pos => signals[pos] = s.b);
+                return {
+                    Timestamp: Math.floor(recordingStartTime * 1000 + s.time * 1000000),
+                    Signals: signals,
+                    QualityWarning: false
+                };
+            });
             const data = {
-                PhoneModel: platform + '|Unknown Device',
+                PhoneModel: `${platform}|Unknown Device`,
                 PhoneOSVersion: 'Unknown',
                 InfoSupportedHardwareLevel: 'True',
                 PpgSignals: ppgSignals,
@@ -420,8 +520,11 @@
             a.download = 'ppg_data.json';
             a.click();
             URL.revokeObjectURL(url);
-            logDebug('Downloaded JSON with ' + signal.length + ' entries');
+            logDebug('Downloaded JSON with ' + ppgSignals.length + ' entries');
         };
+
+        // Update ROI on resize
+        window.addEventListener('resize', updateROIOverlay);
     </script>
 </body>
 </html>
