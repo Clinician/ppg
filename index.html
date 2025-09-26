@@ -650,7 +650,7 @@
                 this.roiParams = { x: 25, y: 25, width: 50, height: 50 };
                 this.zlo = { red: 0, green: 0, blue: 0 };
                 
-                this.qualityThreshold = 0.6;
+                this.qualityThreshold = 0.7; // FIXED: Adjusted for new signal quality logic
                 this.signalQuality = 0;
                 this.heartRate = 0;
                 this.snr = 0;
@@ -660,13 +660,16 @@
                 this.sqmTimeoutDuration = 30000; // 30 seconds
                 this.sqmTimeoutTimer = null;
                 this.sqmCountdownTimer = null;
+                this.recordingStartTime = null;
                 
                 this.initializeEventListeners();
                 this.initializeCanvases();
                 this.startDebugLog();
+                // FIXED: Show ROI overlay immediately on page load
+                this.updateROIDisplay();
                 
                 // Initialize with Android pre-selected
-                this.debugLog('PPG Recorder initialized with Android pre-selected');
+                this.debugLog('PPG Recorder initialized with Android pre-selected and ROI overlay visible');
             }
             
             initializeEventListeners() {
@@ -1018,7 +1021,7 @@
                 }
             }
             
-            // CORRECTED: Using actual measured values from user testing
+            // FIXED: Correct signal quality assessment for real-world PPG
             assessSignalQuality() {
                 if (this.signalBuffer.length < 60) {
                     this.signalQuality = 0;
@@ -1031,55 +1034,54 @@
                 const ac = Math.sqrt(variance);
                 const acDcRatio = dc > 0 ? ac / dc : 0;
                 
-                // CORRECTED THRESHOLDS based on user's actual measurements:
-                // Uncovered camera: DC ~180 = BAD
-                // Covered camera: DC <1.0 = GOOD (but appears "too dark")
+                // FIXED THRESHOLDS: Higher DC values with flash = GOOD signal quality
+                // Lower DC values = poor coverage or no flash
                 
                 let qualityScore = 0;
                 let statusMessage = '';
                 let coverageAnalysis = '';
                 
-                if (dc >= 150) {
-                    // HIGH VALUES (150+) = Uncovered camera = BAD
-                    qualityScore = 0.1;
-                    coverageAnalysis = 'UNCOVERED CAMERA';
-                    statusMessage = `Environmental light detected (DC=${dc.toFixed(1)}) - Cover camera with finger`;
-                    
-                } else if (dc >= 50 && dc < 150) {
-                    // MEDIUM VALUES (50-150) = Partial coverage = POOR
-                    qualityScore = 0.3;
-                    coverageAnalysis = 'PARTIAL COVERAGE';
-                    statusMessage = `Partial coverage (DC=${dc.toFixed(1)}) - Cover camera completely`;
-                    
-                } else if (dc >= 5 && dc < 50) {
-                    // LOW-MEDIUM VALUES (5-50) = Good coverage = ACCEPTABLE
-                    qualityScore = 0.6;
-                    coverageAnalysis = 'GOOD COVERAGE';
-                    statusMessage = `Good finger coverage (DC=${dc.toFixed(1)}) - Suitable for PPG`;
+                if (dc >= 80) {
+                    // HIGH VALUES (80+) = Good flash + finger coverage = EXCELLENT
+                    qualityScore = 0.9;
+                    coverageAnalysis = 'EXCELLENT SIGNAL';
+                    statusMessage = `Strong PPG signal (DC=${dc.toFixed(1)}) - Excellent quality`;
                     
                     // Bonus for heartbeat detection
-                    if (acDcRatio >= 0.1) { // Adjusted for low DC values
-                        qualityScore = 0.8;
-                        statusMessage += ' with heartbeat signal';
-                    }
-                    
-                } else if (dc >= 0.5 && dc < 5) {
-                    // VERY LOW VALUES (0.5-5) = Optimal finger coverage = GOOD
-                    qualityScore = 0.9;
-                    coverageAnalysis = 'OPTIMAL FINGER COVERAGE';
-                    statusMessage = `Excellent finger coverage (DC=${dc.toFixed(1)}) - Optimal for PPG`;
-                    
-                    // Bonus for heartbeat detection (adjusted thresholds for low DC)
-                    if (acDcRatio >= 0.05) { // Lower threshold for very low DC
+                    if (acDcRatio >= 0.02 && acDcRatio <= 0.15) {
                         qualityScore = 1.0;
                         statusMessage += ' with clear heartbeat';
                     }
                     
-                } else {
-                    // EXTREMELY LOW VALUES (<0.5) = Too dark but still usable
+                } else if (dc >= 40 && dc < 80) {
+                    // MEDIUM VALUES (40-80) = Moderate signal = GOOD
                     qualityScore = 0.7;
-                    coverageAnalysis = 'VERY DARK - USABLE';
-                    statusMessage = `Very dark but usable (DC=${dc.toFixed(2)}) - PPG signal detectable`;
+                    coverageAnalysis = 'GOOD SIGNAL';
+                    statusMessage = `Good PPG signal (DC=${dc.toFixed(1)}) - Suitable for recording`;
+                    
+                    // Bonus for heartbeat detection
+                    if (acDcRatio >= 0.02 && acDcRatio <= 0.15) {
+                        qualityScore = 0.8;
+                        statusMessage += ' with heartbeat detected';
+                    }
+                    
+                } else if (dc >= 15 && dc < 40) {
+                    // LOW-MEDIUM VALUES (15-40) = Weak signal = FAIR
+                    qualityScore = 0.5;
+                    coverageAnalysis = 'WEAK SIGNAL';
+                    statusMessage = `Weak signal (DC=${dc.toFixed(1)}) - Check finger placement and flash`;
+                    
+                } else if (dc >= 5 && dc < 15) {
+                    // LOW VALUES (5-15) = Very weak = POOR
+                    qualityScore = 0.3;
+                    coverageAnalysis = 'VERY WEAK SIGNAL';
+                    statusMessage = `Very weak signal (DC=${dc.toFixed(1)}) - Improve finger contact or enable flash`;
+                    
+                } else {
+                    // EXTREMELY LOW VALUES (<5) = No useful signal = BAD
+                    qualityScore = 0.1;
+                    coverageAnalysis = 'NO SIGNAL';
+                    statusMessage = `No signal detected (DC=${dc.toFixed(1)}) - Check camera access and flash`;
                 }
                 
                 this.signalQuality = qualityScore;
@@ -1325,11 +1327,11 @@
                     
                     // Show threshold analysis
                     let thresholdAnalysis = '';
-                    if (currentDC >= 150) thresholdAnalysis = 'Above 150 (Uncovered)';
-                    else if (currentDC >= 100) thresholdAnalysis = 'Range 100-150 (Partial)';
-                    else if (currentDC >= 25) thresholdAnalysis = 'Range 25-100 (Good)';
-                    else if (currentDC >= 10) thresholdAnalysis = 'Range 10-25 (Heavy)';
-                    else thresholdAnalysis = 'Below 10 (Blocked)';
+                    if (currentDC >= 80) thresholdAnalysis = 'Above 80 (Excellent)';
+                    else if (currentDC >= 40) thresholdAnalysis = 'Range 40-80 (Good)';
+                    else if (currentDC >= 15) thresholdAnalysis = 'Range 15-40 (Fair)';
+                    else if (currentDC >= 5) thresholdAnalysis = 'Range 5-15 (Poor)';
+                    else thresholdAnalysis = 'Below 5 (Very Poor)';
                     
                     this.debugLog(`THRESHOLD CHECK: ${thresholdAnalysis}`);
                 }
@@ -1392,15 +1394,15 @@
                     const remaining = Math.max(0, Math.ceil((this.sqmTimeoutDuration - elapsed) / 1000));
                     const currentDC = this.signalBuffer[this.signalBuffer.length - 1];
                     
-                    if (currentDC >= 200) {
-                        this.updateStatus(`Too bright (${currentDC.toFixed(0)}) - cover camera completely. ${remaining}s remaining.`, 'warning');
-                    } else if (currentDC < 30) {
-                        this.updateStatus(`Too dark (${currentDC.toFixed(0)}) - check flash. ${remaining}s remaining.`, 'warning');
-                    } else if (currentDC >= 60 && currentDC <= 150) {
+                    if (currentDC < 5) {
+                        this.updateStatus(`Very weak signal (${currentDC.toFixed(1)}) - check flash and finger placement. ${remaining}s remaining.`, 'warning');
+                    } else if (currentDC >= 5 && currentDC < 40) {
+                        this.updateStatus(`Improving signal (${currentDC.toFixed(1)}) - maintain finger position. ${remaining}s remaining.`, 'info');
+                    } else if (currentDC >= 40) {
                         if (!hasHeartRate) {
-                            this.updateStatus(`Good coverage! Detecting heartbeat... ${remaining}s remaining.`, 'info');
+                            this.updateStatus(`Good signal! Detecting heartbeat... ${remaining}s remaining.`, 'info');
                         } else {
-                            this.updateStatus(`Excellent coverage, improving quality... ${remaining}s remaining.`, 'info');
+                            this.updateStatus(`Excellent signal with heartbeat! Optimizing quality... ${remaining}s remaining.`, 'info');
                         }
                     }
                 }
@@ -1410,6 +1412,8 @@
                 this.roiType = type;
                 document.querySelectorAll('.roi-btn').forEach(btn => btn.classList.remove('active'));
                 document.getElementById(type + 'Roi').classList.add('active');
+                // FIXED: Always update ROI display when type changes
+                this.updateROIDisplay();
                 this.debugLog(`ROI type changed to: ${type}`);
             }
             
@@ -1421,6 +1425,8 @@
                 } else {
                     valueSpan.textContent = `${value}%`;
                     this.roiParams[sliderId.replace('roi', '').toLowerCase()] = parseInt(value);
+                    // FIXED: Always update ROI display when parameters change
+                    this.updateROIDisplay();
                 }
             }
             
@@ -1501,7 +1507,7 @@
                 this.isCalibrating = false;
             }
             
-            // FIXED: Recording works after timeout regardless of quality
+            // FIXED: Recording with proper auto-stop functionality
             startRecording() {
                 const timeoutReached = !this.sqmTimeoutTimer;
                 const isQualityGood = this.signalQuality >= this.qualityThreshold;
@@ -1513,25 +1519,41 @@
                 
                 this.isRecording = true;
                 this.recordingData = [];
+                this.recordingStartTime = Date.now();
                 
                 const duration = parseInt(document.getElementById('recordingDuration').value) * 1000;
-                const startTime = Date.now();
                 
                 document.getElementById('startRecordingBtn').disabled = true;
                 document.getElementById('stopRecordingBtn').disabled = false;
                 document.getElementById('recordingIndicator').classList.add('active');
                 
-                const qualityNote = isQualityGood ? 'good quality' : 'poor quality (timeout reached)';
+                const qualityNote = isQualityGood ? 'good quality' : 'current quality';
                 this.updateStatus(`Recording ${duration/1000}s with ${qualityNote}. Quality: ${Math.round(this.signalQuality * 100)}%`, 'info');
                 
+                // FIXED: Clear any existing timers
+                if (this.recordingTimer) {
+                    clearTimeout(this.recordingTimer);
+                }
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                }
+                
+                // Set auto-stop timer
                 this.recordingTimer = setTimeout(() => {
+                    this.debugLog(`Auto-stopping recording after ${duration}ms`);
                     this.stopRecording();
                 }, duration);
                 
+                // Progress bar update
                 this.progressInterval = setInterval(() => {
-                    const elapsed = Date.now() - startTime;
+                    const elapsed = Date.now() - this.recordingStartTime;
                     const progress = Math.min((elapsed / duration) * 100, 100);
                     document.getElementById('progressFill').style.width = `${progress}%`;
+                    
+                    if (elapsed >= duration) {
+                        clearInterval(this.progressInterval);
+                        this.progressInterval = null;
+                    }
                 }, 100);
                 
                 this.debugLog(`Recording started - Duration: ${duration}ms, Quality: ${(this.signalQuality*100).toFixed(1)}%`);
@@ -1658,6 +1680,7 @@ ${this.recordingResults.data.slice(0, 5).map(sample =>
                 }
                 
                 this.sqmStartTime = null;
+                this.recordingStartTime = null;
                 
                 this.recordingData = [];
                 this.signalBuffer = [];
@@ -1721,8 +1744,8 @@ ${this.recordingResults.data.slice(0, 5).map(sample =>
             
             startDebugLog() {
                 this.debugMessages = [];
-                this.debugLog('PPG Recorder initialized with CORRECTED signal quality logic');
-                this.debugLog('Environment = BAD quality, Finger coverage = GOOD quality');
+                this.debugLog('PPG Recorder initialized with FIXED signal quality logic');
+                this.debugLog('Higher DC values with flash = GOOD quality, Lower DC values = poor signal');
             }
             
             debugLog(message) {
