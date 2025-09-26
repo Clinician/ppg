@@ -1575,10 +1575,22 @@
             stopRecording() {
                 if (!this.isRecording) return;
                 
-                this.isRecording = false;
-                clearTimeout(this.recordingTimer);
-                clearInterval(this.progressInterval);
+                this.debugLog('STOP RECORDING: Function called');
                 
+                // FIXED: Force stop recording first
+                this.isRecording = false;
+                
+                // Clear all timers
+                if (this.recordingTimer) {
+                    clearTimeout(this.recordingTimer);
+                    this.recordingTimer = null;
+                }
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                    this.progressInterval = null;
+                }
+                
+                // Update UI
                 document.getElementById('startRecordingBtn').disabled = false;
                 document.getElementById('stopRecordingBtn').disabled = true;
                 document.getElementById('recordingIndicator').classList.remove('active');
@@ -1587,7 +1599,7 @@
                 this.processRecordingResults();
                 this.updateStatus(`Recording completed - ${this.recordingData.length} samples collected`, 'success');
                 
-                this.debugLog(`Recording stopped - ${this.recordingData.length} samples`);
+                this.debugLog(`STOP RECORDING: Completed - ${this.recordingData.length} samples, isRecording: ${this.isRecording}`);
             }
             
             processRecordingResults() {
@@ -1608,15 +1620,14 @@
                         sampleRate: sampleRate.toFixed(2),
                         averageQuality: (avgQuality * 100).toFixed(1),
                         heartRate: this.heartRate,
-                        snr: this.snr.toFixed(2)
+                        snr: this.snr.toFixed(2),
+                        timestamp: new Date().toISOString()
                     },
-                    ppgData: this.recordingData.map(sample => ({
-                        timestamp: sample.timestamp,
-                        ppgSignal: sample.ppgValue.toFixed(3),  // Main PPG signal (green channel)
-                        quality: sample.quality.toFixed(3),
-                        red: sample.red.toFixed(2),             // Raw RGB for reference
-                        green: sample.green.toFixed(2),
-                        blue: sample.blue.toFixed(2)
+                    ppgSignal: this.recordingData.map((sample, index) => ({
+                        sampleIndex: index,
+                        timeMs: sample.timestamp - this.recordingData[0].timestamp,
+                        ppgValue: parseFloat(sample.ppgValue.toFixed(3)),
+                        qualityScore: parseFloat(sample.quality.toFixed(3))
                     }))
                 };
                 
@@ -1645,8 +1656,8 @@ Green: ${metadata.zloCalibration.green.toFixed(2)}
 Blue: ${metadata.zloCalibration.blue.toFixed(2)}
 
 Data preview (first 5 samples):
-${this.recordingResults.ppgData.slice(0, 5).map(sample => 
-    `Timestamp: ${sample.timestamp}, PPG: ${sample.ppgSignal}, Quality: ${sample.quality}, RGB: (${sample.red}, ${sample.green}, ${sample.blue})`
+${this.recordingResults.ppgSignal.slice(0, 5).map(sample => 
+    `Sample ${sample.sampleIndex}: Time=${sample.timeMs}ms, PPG=${sample.ppgValue}, Quality=${sample.qualityScore}`
 ).join('\n')}`;
                 
                 resultsPreview.textContent = preview;
