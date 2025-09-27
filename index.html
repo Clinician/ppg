@@ -305,9 +305,9 @@
                 }
             }
             return count > 0 ? {
-                r: sumR / count - zlo.r,
-                g: sumG / count - zlo.g,
-                b: sumB / count - zlo.b
+                r: sumR / count,
+                g: sumG / count,
+                b: sumB / count
             } : { r: 0, g: 0, b: 0 };
         }
 
@@ -319,10 +319,10 @@
             }
             const { r, g, b } = getROIRGB();
             const time = (Date.now() - startTime) / 1000;
-            signal.push({ time, r, g, b });
-            updateSQM(g);
+            signal.push({ time, r: r - zlo.r, g: g - zlo.g, b: b - zlo.b });
+            updateSQM(g - zlo.g);
             plotSignal();
-            logDebug(`Sample: t=${time.toFixed(3)}, r=${r.toFixed(2)}, g=${g.toFixed(2)}, b=${b.toFixed(2)}`);
+            logDebug(`Sample: t=${time.toFixed(3)}, r=${(r - zlo.r).toFixed(2)}, g=${(g - zlo.g).toFixed(2)}, b=${(b - zlo.b).toFixed(2)}`);
             if (isRecording && (Date.now() - recordingStartTime) >= parseInt(durationEl.value) * 1000) {
                 stopRecording();
                 stop(); // Stop SQM after recording
@@ -418,7 +418,8 @@
             if (platform === 'Android' && torchTrack) {
                 try {
                     await torchTrack.applyConstraints({ advanced: [{ torch: true }] });
-                    logDebug('Flash enabled for SQM');
+                    await video.play();
+                    logDebug('Flash enabled for SQM and video replayed');
                 } catch (e) {
                     logDebug('Flash enable failed: ' + e.message);
                     alert('Flash not available: ' + e.message);
@@ -485,11 +486,12 @@
                 });
             }
             isMonitoring = false;
-            startMonitorBtn.disabled = !!stream;
+            startMonitorBtn.disabled = false;
             startRecordBtn.disabled = true;
-            calibrateBtn.disabled = !stream;
-            monitorStatusEl.textContent = stream ? 'Stopped. Ready for ZLO or SQM.' : 'Stopped. Start Camera to continue.';
+            calibrateBtn.disabled = false;
+            monitorStatusEl.textContent = 'Stopped. Ready for ZLO or SQM.';
             logDebug('Stopped');
+            video.play().catch(e => logDebug('Video replay after stop failed: ' + e.message));
         }
 
         // Calibrate ZLO (no flash)
@@ -509,14 +511,15 @@
                     logDebug('Flash disable failed for ZLO: ' + e.message);
                 }
             }
+            await video.play().catch(e => logDebug('Video play during ZLO failed: ' + e.message));
             const calStart = Date.now();
             let sumR = 0, sumG = 0, sumB = 0;
             let calCount = 0;
             const calInterval = setInterval(() => {
                 const { r, g, b } = getROIRGB();
-                sumR += r + zlo.r; // Raw values
-                sumG += g + zlo.g;
-                sumB += b + zlo.b;
+                sumR += r;
+                sumG += g;
+                sumB += b;
                 calCount++;
                 if (Date.now() - calStart >= 2000) {
                     clearInterval(calInterval);
@@ -533,6 +536,7 @@
                             logDebug('Flash re-enable failed: ' + e.message);
                         });
                     }
+                    video.play().catch(e => logDebug('Video replay after ZLO failed: ' + e.message));
                 }
             }, 100);
         };
@@ -552,6 +556,9 @@
             monitorStatusEl.textContent = `${platform} selected - click Start Camera`;
             plotCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
             logDebug('Reset');
+            if (stream) {
+                video.play().catch(e => logDebug('Video play after reset failed: ' + e.message));
+            }
         };
 
         // Download PPG in JSON format matching ppgformat.txt
