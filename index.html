@@ -266,51 +266,6 @@
             }
         };
 
-        // Get ROI RGB averages (raw, no subtraction)
-        function getROIRGB() {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-
-            const roiType = roiTypeEl.value;
-            const roiX = (parseFloat(roiXEl.value) / 100) * canvas.width;
-            const roiY = (parseFloat(roiYEl.value) / 100) * canvas.height;
-            const roiW = (parseFloat(roiWidthEl.value) / 100) * canvas.width;
-            const roiH = (parseFloat(roiHeightEl.value) / 100) * canvas.height;
-
-            let sumR = 0, sumG = 0, sumB = 0;
-            let count = 0;
-
-            const cx = roiX + roiW / 2;
-            const cy = roiY + roiH / 2;
-            const r = Math.min(roiW, roiH) / 2;
-
-            for (let py = Math.max(0, Math.floor(roiY)); py < Math.min(canvas.height, roiY + roiH); py++) {
-                for (let px = Math.max(0, Math.floor(roiX)); px < Math.min(canvas.width, roiX + roiW); px++) {
-                    let include = false;
-                    if (roiType === 'Rectangle') {
-                        include = true;
-                    } else {
-                        const dx = px - cx;
-                        const dy = py - cy;
-                        if (dx * dx + dy * dy <= r * r) include = true;
-                    }
-                    if (include) {
-                        const idx = (py * canvas.width + px) * 4;
-                        sumR += data[idx];
-                        sumG += data[idx + 1];
-                        sumB += data[idx + 2];
-                        count++;
-                    }
-                }
-            }
-            return count > 0 ? {
-                r: sumR / count,
-                g: sumG / count,
-                b: sumB / count
-            } : { r: 0, g: 0, b: 0 };
-        }
-
         // Sample loop
         function sample() {
             if (video.readyState !== video.HAVE_ENOUGH_DATA) {
@@ -524,10 +479,10 @@
                     alert(`ZLO calibrated: R=${zlo.r.toFixed(2)}, G=${zlo.g.toFixed(2)}, B=${zlo.b.toFixed(2)}`);
                     calibrateBtn.disabled = false;
                     logDebug(`ZLO: R=${zlo.r.toFixed(2)}, G=${zlo.g.toFixed(2)}, B=${zlo.b.toFixed(2)}`);
+                    monitorStatusEl.textContent = 'ZLO complete. Ready for another ZLO or SQM.';
                     if (video.paused) {
                         video.play().catch(e => logDebug('Video replay after ZLO failed: ' + e.message));
                     }
-                    monitorStatusEl.textContent = 'ZLO complete. Ready for another ZLO or SQM.';
                 }
             }, 200); // Reduced frequency to 200ms to avoid lag
         };
