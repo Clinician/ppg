@@ -266,7 +266,7 @@
             }
         };
 
-        // Get ROI RGB averages
+        // Get ROI RGB averages (raw, no subtraction)
         function getROIRGB() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -317,12 +317,12 @@
                 logDebug('Video not ready for sampling');
                 return;
             }
-            const { r, g, b } = getROIRGB();
+            const raw = getROIRGB();
             const time = (Date.now() - startTime) / 1000;
-            signal.push({ time, r: r - zlo.r, g: g - zlo.g, b: b - zlo.b });
-            updateSQM(g - zlo.g);
+            signal.push({ time, r: raw.r - zlo.r, g: raw.g - zlo.g, b: raw.b - zlo.b });
+            updateSQM(raw.g - zlo.g);
             plotSignal();
-            logDebug(`Sample: t=${time.toFixed(3)}, r=${(r - zlo.r).toFixed(2)}, g=${(g - zlo.g).toFixed(2)}, b=${(b - zlo.b).toFixed(2)}`);
+            logDebug(`Sample: t=${time.toFixed(3)}, r=${(raw.r - zlo.r).toFixed(2)}, g=${(raw.g - zlo.g).toFixed(2)}, b=${(raw.b - zlo.b).toFixed(2)}`);
             if (isRecording && (Date.now() - recordingStartTime) >= parseInt(durationEl.value) * 1000) {
                 stopRecording();
                 stop(); // Stop SQM after recording
@@ -418,8 +418,7 @@
             if (platform === 'Android' && torchTrack) {
                 try {
                     await torchTrack.applyConstraints({ advanced: [{ torch: true }] });
-                    await video.play();
-                    logDebug('Flash enabled for SQM and video replayed');
+                    logDebug('Flash enabled for SQM');
                 } catch (e) {
                     logDebug('Flash enable failed: ' + e.message);
                     alert('Flash not available: ' + e.message);
@@ -491,7 +490,9 @@
             calibrateBtn.disabled = false;
             monitorStatusEl.textContent = 'Stopped. Ready for ZLO or SQM.';
             logDebug('Stopped');
-            video.play().catch(e => logDebug('Video replay after stop failed: ' + e.message));
+            if (video.paused) {
+                video.play().catch(e => logDebug('Video replay after stop failed: ' + e.message));
+            }
         }
 
         // Calibrate ZLO (no flash)
@@ -501,25 +502,17 @@
                 return;
             }
             calibrateBtn.disabled = true;
-            let wasTorchOn = false;
-            if (platform === 'Android' && torchTrack) {
-                try {
-                    await torchTrack.applyConstraints({ advanced: [{ torch: false }] });
-                    wasTorchOn = true;
-                    logDebug('Flash disabled for ZLO');
-                } catch (e) {
-                    logDebug('Flash disable failed for ZLO: ' + e.message);
-                }
+            if (video.paused) {
+                await video.play().catch(e => logDebug('Video play during ZLO failed: ' + e.message));
             }
-            await video.play().catch(e => logDebug('Video play during ZLO failed: ' + e.message));
             const calStart = Date.now();
             let sumR = 0, sumG = 0, sumB = 0;
             let calCount = 0;
             const calInterval = setInterval(() => {
-                const { r, g, b } = getROIRGB();
-                sumR += r;
-                sumG += g;
-                sumB += b;
+                const raw = getROIRGB();
+                sumR += raw.r;
+                sumG += raw.g;
+                sumB += raw.b;
                 calCount++;
                 if (Date.now() - calStart >= 2000) {
                     clearInterval(calInterval);
@@ -531,14 +524,12 @@
                     alert(`ZLO calibrated: R=${zlo.r.toFixed(2)}, G=${zlo.g.toFixed(2)}, B=${zlo.b.toFixed(2)}`);
                     calibrateBtn.disabled = false;
                     logDebug(`ZLO: R=${zlo.r.toFixed(2)}, G=${zlo.g.toFixed(2)}, B=${zlo.b.toFixed(2)}`);
-                    if (wasTorchOn) {
-                        torchTrack.applyConstraints({ advanced: [{ torch: true }] }).catch(e => {
-                            logDebug('Flash re-enable failed: ' + e.message);
-                        });
+                    if (video.paused) {
+                        video.play().catch(e => logDebug('Video replay after ZLO failed: ' + e.message));
                     }
-                    video.play().catch(e => logDebug('Video replay after ZLO failed: ' + e.message));
+                    monitorStatusEl.textContent = 'ZLO complete. Ready for another ZLO or SQM.';
                 }
-            }, 100);
+            }, 200); // Reduced frequency to 200ms to avoid lag
         };
 
         // Reset
@@ -556,7 +547,7 @@
             monitorStatusEl.textContent = `${platform} selected - click Start Camera`;
             plotCtx.clearRect(0, 0, plotCanvas.width, plotCanvas.height);
             logDebug('Reset');
-            if (stream) {
+            if (stream && video.paused) {
                 video.play().catch(e => logDebug('Video play after reset failed: ' + e.message));
             }
         };
